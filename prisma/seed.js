@@ -114,7 +114,7 @@ async function main() {
                 tenantId: tenant.id,
                 firstName: 'Demo',
                 lastName: 'Teacher',
-                email: 'demo@apextime.cloud',
+                email: 'demo@apextime.in',
                 phone: '9999999999',
                 gender: 'male',
             },
@@ -187,7 +187,7 @@ async function main() {
     console.log('  Super Admin: superadmin / super123');
     console.log('  Admin:       admin / admin123');
     console.log('  Employee:    EMP001 / EMP001');
-    console.log(`\nTenant slug: demo (use demo.apextime.cloud or ?tenant=demo)`);
+    console.log(`\nTenant slug: demo (use demo.apextime.in or ?tenant=demo)`);
 }
 
 main()

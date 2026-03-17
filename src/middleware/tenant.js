@@ -16,12 +16,12 @@ async function tenantMiddleware(req, res, next) {
             slug = req.headers['x-tenant-slug'];
         }
 
-        // 2. Extract from subdomain (school1.apextime.cloud)
+        // 2. Extract from subdomain (school1.apextime.in)
         if (!slug) {
             const host = req.hostname || req.headers.host?.split(':')[0];
             if (host) {
                 const parts = host.split('.');
-                // subdomain.apextime.cloud = 3 parts
+                // subdomain.apextime.in = 3 parts
                 // subdomain.localhost = 2 parts (dev)
                 // Check if host is IP address
                 const isIp = /^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/.test(host);

@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ApexTime Cloud - Smart Campus Management</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-blue: #0A2540;
+            --accent-blue: #635BFF;
+            --accent-light: #F6F9FC;
+            --text-dark: #32325D;
+            --text-gray: #425466;
+            --white: #FFFFFF;
+            --success: #00D4FF;
+            --highlight: #FF7A00;
+            --purple: #8b5cf6;
+            --border-color: #E6E8EB;
+        }
+
+        @page {
+            size: A4;
+            margin: 0;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--white);
+            color: var(--text-dark);
+            width: 210mm;
+            height: 297mm;
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+            overflow: hidden;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4 {
+            margin: 0;
+        }
+
+        p {
+            margin: 0;
+            line-height: 1.6;
+        }
+
+        .page {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            box-sizing: border-box;
+            page-break-after: always;
+        }
+
+        /* --- COVER PAGE --- */
+        .cover {
+            background-color: var(--primary-blue);
+            background-image:
+                radial-gradient(circle at top right, rgba(99, 91, 255, 0.15), transparent 40%),
+                radial-gradient(circle at bottom left, rgba(0, 212, 255, 0.1), transparent 40%);
+            display: flex;
+            flex-direction: column;
+            padding: 60px;
+            color: var(--white);
+            overflow: hidden;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .logo i {
+            color: var(--success);
+            font-size: 28px;
+        }
+
+        .website-link {
+            font-size: 14px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .hero {
+            margin-top: 100px;
+            max-width: 80%;
+            z-index: 10;
+        }
+
+        .eyebrow {
+            color: var(--highlight);
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            margin-bottom: 24px;
+            display: block;
+        }
+
+        .hero h1 {
+            font-size: 56px;
+            font-weight: 800;
+            line-height: 1.1;
+            letter-spacing: -1.5px;
+            margin-bottom: 24px;
+            color: var(--white);
+        }
+
+        .hero p {
+            font-size: 20px;
+            font-weight: 400;
+            color: rgba(255, 255, 255, 0.8);
+            max-width: 550px;
+            line-height: 1.5;
+            margin-bottom: 40px;
+        }
+
+        /* Hero Tags / Badges */
+        .hero-tags {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 40px;
+            max-width: 600px;
+        }
+
+        .hero-tag {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 8px 16px;
+            border-radius: 50px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--white);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            backdrop-filter: blur(5px);
+        }
+
+        .hero-tag i {
+            color: var(--success);
+        }
+
+        .hero-tag.featured {
+            background: rgba(255, 122, 0, 0.15);
+            border-color: rgba(255, 122, 0, 0.5);
+        }
+
+        .hero-tag.featured i {
+            color: var(--highlight);
+        }
+
+        .hero-graphic {
+            position: absolute;
+            right: -80px;
+            bottom: -50px;
+            width: 700px;
+            height: 500px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.02));
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            transform: rotate(-4deg);
+            box-shadow: 0 50px 100px -20px rgba(0, 0, 0, 0.5);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            z-index: 5;
+        }
+
+        /* Portal Mockup inside graphic */
+        .mock-nav {
+            height: 30px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 16px;
+        }
+
+        .mock-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .mock-line {
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        .mock-body {
+            display: flex;
+            gap: 20px;
+            flex: 1;
+        }
+
+        .mock-sidebar {
+            width: 140px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .mock-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .mock-cards {
+            display: flex;
+            gap: 16px;
+        }
+
+        .mock-card {
+            flex: 1;
+            height: 90px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .mock-card i {
+            font-size: 24px;
+            color: rgba(255, 255, 255, 0.3);
+        }
+
+        .mock-card-label {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .mock-card.active-punch {
+            background: rgba(0, 212, 255, 0.1);
+            border-color: rgba(0, 212, 255, 0.3);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.2);
+        }
+
+        .mock-card.active-punch i {
+            color: var(--success);
+            font-size: 28px;
+        }
+
+        .mock-card.active-punch .mock-card-label {
+            color: var(--success);
+        }
+
+        .mock-card.active-leave {
+            background: rgba(255, 122, 0, 0.1);
+            border-color: rgba(255, 122, 0, 0.3);
+        }
+
+        .mock-card.active-leave i {
+            color: var(--highlight);
+        }
+
+        .mock-card.active-leave .mock-card-label {
+            color: var(--highlight);
+        }
+
+        .mock-chart {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .mock-chart-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 13px;
+        }
+
+        .mock-bar-container {
+            flex: 1;
+            margin: 20px;
+            display: flex;
+            align-items: flex-end;
+            gap: 15px;
+        }
+
+        .mock-bar {
+            flex: 1;
+            background: var(--accent-blue);
+            border-radius: 4px 4px 0 0;
+            opacity: 0.8;
+        }
+
+        .metrics-banner {
+            position: absolute;
+            bottom: 50px;
+            left: 60px;
+            display: flex;
+            gap: 40px;
+            z-index: 10;
+        }
+
+        .metric {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .metric-value {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--white);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .metric-value i {
+            color: var(--success);
+            font-size: 24px;
+        }
+
+        .metric-label {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.7);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        /* --- CONTENT PAGE --- */
+        .inside-page {
+            background-color: var(--white);
+            padding: 60px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .section-header {
+            margin-bottom: 30px;
+            max-width: 650px;
+        }
+
+        .section-header h2 {
+            font-size: 36px;
+            font-weight: 800;
+            color: var(--primary-blue);
+            letter-spacing: -1px;
+            margin-bottom: 16px;
+        }
+
+        .section-header p {
+            font-size: 18px;
+            color: var(--text-gray);
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+            background: var(--accent-light);
+            padding: 24px;
+            border-radius: 16px;
+        }
+
+        /* Special Styling for Core Hero Features */
+        .feature-item.hero-feature {
+            background: rgba(0, 212, 255, 0.05);
+            border: 1px solid rgba(0, 212, 255, 0.2);
+        }
+
+        .feature-item.hero-feature-2 {
+            background: rgba(255, 122, 0, 0.05);
+            border: 1px solid rgba(255, 122, 0, 0.2);
+        }
+
+        .feature-item.hero-feature-3 {
+            background: rgba(139, 92, 246, 0.05);
+            border: 1px solid rgba(139, 92, 246, 0.2);
+        }
+
+        .feature-icon-container {
+            flex-shrink: 0;
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+        }
+
+        .icon-blue {
+            background: rgba(99, 91, 255, 0.1);
+            color: var(--accent-blue);
+        }
+
+        .icon-green {
+            background: rgba(0, 212, 161, 0.1);
+            color: #00D4A1;
+        }
+
+        .icon-orange {
+            background: rgba(255, 122, 0, 0.1);
+            color: #FF7A00;
+        }
+
+        .icon-teal {
+            background: rgba(0, 212, 255, 0.1);
+            color: #00A3C4;
+        }
+
+        .icon-purple {
+            background: rgba(139, 92, 246, 0.1);
+            color: var(--purple);
+        }
+
+        .feature-content h3 {
+            font-size: 18px;
+            font-weight: 800;
+            color: var(--primary-blue);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .feature-content h3 span.badge {
+            font-size: 10px;
+            background: var(--highlight);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 20px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .feature-content h3 span.badge-blue {
+            font-size: 10px;
+            background: var(--success);
+            color: var(--primary-blue);
+            padding: 2px 8px;
+            border-radius: 20px;
+            text-transform: uppercase;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+        }
+
+        .feature-content h3 span.badge-purple {
+            font-size: 10px;
+            background: var(--purple);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 20px;
+            text-transform: uppercase;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+        }
+
+        .feature-content p {
+            font-size: 13.5px;
+            color: var(--text-gray);
+            line-height: 1.5;
+        }
+
+        .tech-block {
+            background-color: var(--primary-blue);
+            color: white;
+            border-radius: 20px;
+            padding: 30px 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 'auto';
+            flex-grow: 1;
+            max-height: 140px;
+        }
+
+        .tech-content h3 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: white;
+        }
+
+        .tech-content p {
+            font-size: 15px;
+            color: rgba(255, 255, 255, 0.8);
+            max-width: 450px;
+        }
+
+        .contact-footer {
+            margin-top: auto;
+            border-top: 1px solid var(--border-color);
+            padding-top: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+        }
+
+        .company-info .logo-dark {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--primary-blue);
+            margin-bottom: 8px;
+        }
+
+        .company-info .logo-dark i {
+            color: var(--accent-blue);
+        }
+
+        .company-desc {
+            font-size: 13px;
+            color: var(--text-gray);
+            max-width: 300px;
+        }
+
+        .contact-details {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+
+        .contact-method {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .contact-method i {
+            color: var(--accent-blue);
+            font-size: 16px;
+            width: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Front Cover -->
+    <div class="page cover">
+        <div class="header">
+            <div class="logo">
+                <i class="fa-solid fa-layer-group"></i>
+                ApexTime
+            </div>
+            <div class="website-link">apextime.in</div>
+        </div>
+
+        <div class="hero">
+            <span class="eyebrow">The Ultimate Campus App</span>
+            <h1>Attendance & HR made ridiculously simple.</h1>
+            <p>Empower your staff with an integrated <strong>Self-Service Portal</strong> to punch in from anywhere,
+                apply for leaves, verify past attendance, and track real-time announcements.</p>
+
+            <div class="hero-tags">
+                <div class="hero-tag featured"><i class="fa-solid fa-mobile-screen-button"></i> Punch From Anywhere
+                </div>
+                <div class="hero-tag"
+                    style="background: rgba(139, 92, 246, 0.15); border-color: rgba(139, 92, 246, 0.5);"><i
+                        class="fa-regular fa-id-badge" style="color: #8b5cf6;"></i> Staff Portal</div>
+                <div class="hero-tag"><i class="fa-solid fa-clock-rotate-left"></i> Auto CompOff Tracking</div>
+            </div>
+        </div>
+
+        <div class="hero-graphic">
+            <div class="mock-nav">
+                <div style="display: flex; gap: 6px;">
+                    <div class="mock-dot" style="background:#FF5F56;"></div>
+                    <div class="mock-dot" style="background:#FFBD2E;"></div>
+                    <div class="mock-dot" style="background:#27C93F;"></div>
+                </div>
+                <div class="mock-line" style="width: 150px; margin-left: 20px;"></div>
+                <div class="mock-line" style="width: 40px; margin-left: auto;"></div>
+            </div>
+            <div class="mock-body">
+                <div class="mock-sidebar">
+                    <div class="mock-line" style="width: 80%;"></div>
+                    <div class="mock-line" style="width: 60%; background: var(--purple); opacity: 0.8;"></div>
+                    <div class="mock-line" style="width: 75%;"></div>
+                    <div class="mock-line" style="width: 90%; margin-top: 15px; opacity: 0.5;"></div>
+                    <div class="mock-line" style="width: 50%; opacity: 0.5;"></div>
+                </div>
+                <div class="mock-content">
+                    <div class="mock-cards">
+                        <div class="mock-card active-leave">
+                            <i class="fa-solid fa-calendar-plus"></i>
+                            <span class="mock-card-label">Apply Leave</span>
+                        </div>
+                        <div class="mock-card active-punch">
+                            <i class="fa-solid fa-location-dot"></i>
+                            <span class="mock-card-label">Punch In</span>
+                        </div>
+                        <div class="mock-card">
+                            <i class="fa-solid fa-bullhorn"></i>
+                            <span class="mock-card-label">Notices</span>
+                        </div>
+                    </div>
+                    <div class="mock-chart">
+                        <div class="mock-chart-header">
+                            <i class="fa-solid fa-chart-line"></i> My Attendance Balance
+                        </div>
+                        <div class="mock-bar-container">
+                            <div class="mock-bar" style="height: 40%"></div>
+                            <div class="mock-bar" style="height: 70%"></div>
+                            <div class="mock-bar" style="height: 50%"></div>
+                            <div class="mock-bar" style="height: 100%; background: var(--success);"></div>
+                            <div class="mock-bar" style="height: 60%"></div>
+                            <div class="mock-bar" style="height: 80%"></div>
+                            <div class="mock-bar" style="height: 65%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="metrics-banner">
+            <div class="metric">
+                <span class="metric-value"><i class="fa-solid fa-mobile-screen"></i> Any Device</span>
+                <span class="metric-label">Mobile & Web Connectivity</span>
+            </div>
+            <div class="metric">
+                <span class="metric-value"><i class="fa-solid fa-bolt"></i> Instant</span>
+                <span class="metric-label">Biometric Machine Sync</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inside Content Page -->
+    <div class="page inside-page">
+        <div class="section-header">
+            <h2>Everything you need.</h2>
+            <p>ApexTime provides an easy-to-use software solution that covers the daily needs of modern campuses, giving
+                incredible flexibility to staff while keeping your data strictly accurate.</p>
+        </div>
+
+        <div class="features-grid">
+
+            <!-- HERO FEATURE 1 -->
+            <div class="feature-item hero-feature">
+                <div class="feature-icon-container icon-teal">
+                    <i class="fa-solid fa-location-dot"></i>
+                </div>
+                <div class="feature-content">
+                    <h3>Punch Anywhere <span class="badge-blue">Hero Feature</span></h3>
+                    <p>Teachers and staff can log their attendance instantly from any mobile device, laptop, or tablet.
+                        Whether on a field trip or working from home, geographic punch-ins are seamless and securely
+                        tracked.</p>
+                </div>
+            </div>
+
+            <!-- HERO FEATURE 3: STAFF PORTAL -->
+            <div class="feature-item hero-feature-3">
+                <div class="feature-icon-container icon-purple">
+                    <i class="fa-solid fa-chalkboard-user"></i>
+                </div>
+                <div class="feature-content">
+                    <h3>All-in-One Staff Portal <span class="badge-purple">Hero Feature</span></h3>
+                    <p>Provide employees with a dedicated self-service portal. They can easily review their past
+                        attendance status, check monthly balances, request leaves, and stay updated on important campus
+                        announcements.</p>
+                </div>
+            </div>
+
+            <!-- HERO FEATURE 2 -->
+            <div class="feature-item hero-feature-2">
+                <div class="feature-icon-container icon-orange">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                </div>
+                <div class="feature-content">
+                    <h3>CompOff Management <span class="badge">Hero Feature</span></h3>
+                    <p>Automatically track extra hours or holiday work! Our built-in CompOff system banks hours securely
+                        so staff can claim extra leaves, while management gets a clear overview before payroll.</p>
+                </div>
+            </div>
+
+            <div class="feature-item">
+                <div class="feature-icon-container icon-blue">
+                    <i class="fa-solid fa-calendar-check"></i>
+                </div>
+                <div class="feature-content">
+                    <h3>Smart Timetables</h3>
+                    <p>Create full weekly class schedules without clashes. Assign the right professors to the right
+                        subjects, allocate breaks, and efficiently manage daily campus routines.</p>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="tech-block">
+            <div class="tech-content">
+                <h3>Direct Biometric Sync</h3>
+                <p>Connect your existing fingerprint or facial recognition machines directly to our software. Devices
+                    talk to the cloud in real-time—attendance is marked without a single manual data entry.</p>
+            </div>
+            <div style="font-size: 40px; color: var(--success);">
+                <i class="fa-solid fa-fingerprint"></i>
+            </div>
+        </div>
+
+        <div class="contact-footer">
+            <div class="company-info">
+                <div class="logo-dark">
+                    <i class="fa-solid fa-layer-group"></i> ApexTime
+                </div>
+                <div class="company-desc">Cloud software for smart campuses.</div>
+            </div>
+            <div class="contact-details">
+                <div class="contact-method">
+                    <i class="fa-solid fa-phone"></i>
+                    <span>8143684878 • 9100960692</span>
+                </div>
+                <div class="contact-method" style="margin-top: 5px;">
+                    <i class="fa-solid fa-globe"></i>
+                    <span>www.apextime.in</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

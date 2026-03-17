@@ -11,7 +11,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5433:5432"
     restart: unless-stopped
 
   backend:
@@ -23,12 +23,12 @@ services:
       DATABASE_URL: postgresql://apextime:apextime123@postgres:5432/apextime_cloud
       JWT_SECRET: ${JWT_SECRET:-apextime-cloud-jwt-secret-change-in-production}
       NODE_ENV: production
-      PORT: 5001
+      PORT: 5003
       TZ: Asia/Kolkata
     volumes:
       - ./uploads:/app/uploads
     ports:
-      - "5001:5001"
+      - "5003:5003"
     depends_on:
       - postgres
     restart: unless-stopped
@@ -48,7 +48,7 @@ services:
     image: nginx:alpine
     container_name: apextime-cloud-nginx
     ports:
-      - "8080:80"
+      - "8081:80"
       - "8443:443"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d

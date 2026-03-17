@@ -6,9 +6,9 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      '/api': { target: 'http://localhost:5001', changeOrigin: true },
-      '/iclock': { target: 'http://localhost:5001', changeOrigin: true },
-      '/uploads': { target: 'http://localhost:5001', changeOrigin: true },
+      '/api': { target: 'http://localhost:5003', changeOrigin: true },
+      '/iclock': { target: 'http://localhost:5003', changeOrigin: true },
+      '/uploads': { target: 'http://localhost:5003', changeOrigin: true },
     },
   },
 });

@@ -42,8 +42,8 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // CORS
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow all apextime.cloud subdomains + localhost
-    if (!origin || origin.includes('apextime.cloud') || origin.includes('localhost')) {
+    // Allow all apextime.in subdomains + localhost
+    if (!origin || origin.includes('apextime.in') || origin.includes('localhost')) {
       callback(null, true);
     } else {
       callback(null, true); // Allow all for now

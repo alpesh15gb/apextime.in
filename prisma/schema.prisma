@@ -16,7 +16,7 @@ model Tenant {
   id        Int      @id @default(autoincrement())
   uuid      String   @unique @default(uuid())
   name      String
-  slug      String   @unique // subdomain: slug.apextime.cloud
+  slug      String   @unique // subdomain: slug.apextime.in
   domain    String?  @unique // custom domain
   logo      String?
   config    Json?    @default("{}")

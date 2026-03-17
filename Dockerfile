@@ -13,7 +13,7 @@ RUN npx prisma generate
 COPY . .
 
 # Expose backend port
-EXPOSE 5001
+EXPOSE 5003
 
 # Run migrations and start the server
 CMD ["/bin/sh", "-c", "npx prisma db push && node src/index.js"]
