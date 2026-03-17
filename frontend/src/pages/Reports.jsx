@@ -28,16 +28,18 @@ const LocationCell = ({ location, address, onFetch }) => {
 };
 
 export default function Reports() {
-    const [activeTab, setActiveTab] = useState('monthly'); // monthly | approvals
+    const [activeTab, setActiveTab] = useState('performance'); // performance | approvals
+    const [reportType, setReportType] = useState('monthly'); // daily | weekly | monthly
 
     // Department filter (shared)
     const [departments, setDepartments] = useState([]);
     const [departmentId, setDepartmentId] = useState('');
 
-    // Monthly State
+    // Performance State
+    const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'));
     const [month, setMonth] = useState(dayjs().month() + 1);
     const [year, setYear] = useState(dayjs().year());
-    const [monthlyData, setMonthlyData] = useState(null);
+    const [gridData, setGridData] = useState(null);
 
     // Approvals State
     const [approvalStart, setApprovalStart] = useState(dayjs().startOf('month').format('YYYY-MM-DD'));
@@ -56,16 +58,29 @@ export default function Reports() {
 
     // Initial Load
     useEffect(() => {
-        if (activeTab === 'monthly') loadMonthlyData();
+        if (activeTab === 'performance') loadGridData();
         else loadApprovalData();
-    }, [activeTab, month, year, departmentId, approvalStart, approvalEnd, approvalStatus]);
+    }, [activeTab, reportType, selectedDate, month, year, departmentId, approvalStart, approvalEnd, approvalStatus]);
 
-    const loadMonthlyData = () => {
+    const loadGridData = () => {
         setLoading(true);
-        const params = { month, year };
+        let endpoint = '/reports/grid';
+        let params = {};
+
+        if (reportType === 'monthly') {
+            endpoint = '/reports/monthly';
+            params = { month, year };
+        } else if (reportType === 'daily') {
+            params = { startDate: selectedDate, endDate: selectedDate };
+        } else if (reportType === 'weekly') {
+            const start = dayjs(selectedDate).startOf('week');
+            params = { startDate: start.format('YYYY-MM-DD'), endDate: start.add(6, 'day').format('YYYY-MM-DD') };
+        }
+
         if (departmentId) params.departmentId = departmentId;
-        api.get('/reports/monthly', { params })
-            .then(res => { setMonthlyData(res.data); setLoading(false); })
+
+        api.get(endpoint, { params })
+            .then(res => { setGridData(res.data); setLoading(false); })
             .catch(() => { alert('Failed to load report'); setLoading(false); });
     };
 
@@ -95,59 +110,53 @@ export default function Reports() {
     const fetchAllAddresses = async () => {
         if (!approvalData) return;
         setFetchingAddresses(true);
-        // Filter records that have location but no address yet
         const toFetch = approvalData.filter(r => r.location && r.location.includes(',') && !addresses[r.id]);
-
         for (const row of toFetch) {
             const [lat, lng] = row.location.split(',').map(s => s.trim());
             await fetchOneAddress(row.id, lat, lng);
-            // Wait 1.1s to respect Nominatim rate limit
             await new Promise(r => setTimeout(r, 1100));
         }
         setFetchingAddresses(false);
     };
 
     const handleExportExcel = () => {
-        if (activeTab === 'monthly') exportMonthlyExcel();
+        if (activeTab === 'performance') exportGridExcel();
         else exportApprovalsExcel();
     };
 
-    const exportMonthlyExcel = () => {
-        if (!monthlyData || !monthlyData.data) return;
+    const exportGridExcel = () => {
+        if (!gridData || !gridData.data) return;
         const aoa = [];
-        aoa.push([`Monthly Performance Report - ${monthlyData.meta.monthName} ${monthlyData.meta.year} `]);
+        const title = reportType === 'monthly' 
+            ? `Monthly Performance Report - ${gridData.meta.monthName} ${gridData.meta.year}`
+            : `${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Performance Report (${gridData.meta.startDate} to ${gridData.meta.endDate})`;
+        
+        aoa.push([title]);
         aoa.push([]);
 
+        const dayKeys = Object.keys(gridData.data[0].days).sort();
         const headerRow = ['Name', 'Code', 'Dept', 'Metric'];
-        for (let i = 1; i <= monthlyData.meta.daysInMonth; i++) headerRow.push(i);
+        dayKeys.forEach(k => headerRow.push(dayjs(k).format('DD/MM')));
         aoa.push(headerRow);
 
-        monthlyData.data.forEach(emp => {
+        gridData.data.forEach(emp => {
             const rowIn = [emp.name, emp.code, emp.department, 'IN'];
-            for (let i = 1; i <= monthlyData.meta.daysInMonth; i++) rowIn.push(emp.days[i]?.in || '');
+            dayKeys.forEach(k => rowIn.push(emp.days[k]?.in || ''));
             aoa.push(rowIn);
 
             const rowOut = ['', '', '', 'OUT'];
-            for (let i = 1; i <= monthlyData.meta.daysInMonth; i++) rowOut.push(emp.days[i]?.out || '');
+            dayKeys.forEach(k => rowOut.push(emp.days[k]?.out || ''));
             aoa.push(rowOut);
 
             const rowShift = ['', '', '', 'Shift'];
-            for (let i = 1; i <= monthlyData.meta.daysInMonth; i++) rowShift.push(emp.days[i]?.shift || 'GEN');
+            dayKeys.forEach(k => rowShift.push(emp.days[k]?.shift || ''));
             aoa.push(rowShift);
 
-            const rowLate = ['', '', '', 'Late'];
-            for (let i = 1; i <= monthlyData.meta.daysInMonth; i++) rowLate.push(emp.days[i]?.late || '');
-            aoa.push(rowLate);
-
-            const rowOt = ['', '', '', 'OT'];
-            for (let i = 1; i <= monthlyData.meta.daysInMonth; i++) rowOt.push(emp.days[i]?.ot || '');
-            aoa.push(rowOt);
-
             const rowStatus = ['', '', '', 'Status'];
-            for (let i = 1; i <= monthlyData.meta.daysInMonth; i++) rowStatus.push(emp.days[i]?.status || '');
+            dayKeys.forEach(k => rowStatus.push(emp.days[k]?.status || ''));
             aoa.push(rowStatus);
 
-            const rowSum = [`Present: ${emp.stats.present}, Absent: ${emp.stats.absent}, Work: ${emp.stats.totalWorkHrs}, OT: ${emp.stats.totalOtHrs || '00:00'} `, '', '', ''];
+            const rowSum = [`P: ${emp.stats.present}, A: ${emp.stats.absent}, Work: ${emp.stats.totalWorkHrs}, OT: ${emp.stats.totalOtHrs || '00:00'}`, '', '', ''];
             aoa.push(rowSum);
             aoa.push([]);
         });
@@ -157,17 +166,12 @@ export default function Reports() {
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Attendance");
         const deptSuffix = departmentId ? `_${departments.find(d => d.id == departmentId)?.name || departmentId}` : '';
-        XLSX.writeFile(wb, `Attendance_Report_${month}_${year}${deptSuffix}.xlsx`);
+        XLSX.writeFile(wb, `Performance_Report_${reportType}_${gridData.meta.startDate}${deptSuffix}.xlsx`);
     };
 
     const exportApprovalsExcel = () => {
         if (!approvalData) return;
-        // Inject addresses into export data if available
-        const exportData = approvalData.map(d => ({
-            ...d,
-            location: addresses[d.id] || d.location // Use address if fetched
-        }));
-
+        const exportData = approvalData.map(d => ({ ...d, location: addresses[d.id] || d.location }));
         const ws = XLSX.utils.json_to_sheet(exportData);
         ws['!cols'] = [{ wch: 12 }, { wch: 20 }, { wch: 10 }, { wch: 15 }, { wch: 8 }, { wch: 8 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 20 }, { wch: 25 }];
         const wb = XLSX.utils.book_new();
@@ -184,29 +188,40 @@ export default function Reports() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                     <h2 style={{ fontSize: 22, fontWeight: 700 }}>Reports</h2>
                     <div style={{ display: 'flex', gap: 10 }}>
-                        <button className={`btn ${activeTab === 'monthly' ? 'btn-primary' : 'btn-ghost'} `} onClick={() => setActiveTab('monthly')}>Monthly Performance</button>
+                        <button className={`btn ${activeTab === 'performance' ? 'btn-primary' : 'btn-ghost'} `} onClick={() => setActiveTab('performance')}>Performance Grid</button>
                         <button className={`btn ${activeTab === 'approvals' ? 'btn-primary' : 'btn-ghost'} `} onClick={() => setActiveTab('approvals')}>Approvals / Day Wise</button>
                     </div>
                 </div>
 
                 <div className="card" style={{ padding: 16, display: 'flex', gap: 16, alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-                        {/* Department dropdown — always visible */}
                         <select value={departmentId} onChange={e => setDepartmentId(e.target.value)} className="form-input" style={{ width: 180 }}>
                             <option value="">All Departments</option>
                             {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                         </select>
 
-                        {activeTab === 'monthly' ? (
+                        {activeTab === 'performance' ? (
                             <>
-                                <select value={month} onChange={e => setMonth(e.target.value)} className="form-input" style={{ width: 140 }}>
-                                    {Array.from({ length: 12 }, (_, i) => (
-                                        <option key={i + 1} value={i + 1}>{dayjs().month(i).format('MMMM')}</option>
-                                    ))}
+                                <select value={reportType} onChange={e => setReportType(e.target.value)} className="form-input" style={{ width: 120 }}>
+                                    <option value="daily">Daily</option>
+                                    <option value="weekly">Weekly</option>
+                                    <option value="monthly">Monthly</option>
                                 </select>
-                                <select value={year} onChange={e => setYear(e.target.value)} className="form-input" style={{ width: 100 }}>
-                                    {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
-                                </select>
+
+                                {reportType === 'monthly' ? (
+                                    <>
+                                        <select value={month} onChange={e => setMonth(e.target.value)} className="form-input" style={{ width: 140 }}>
+                                            {Array.from({ length: 12 }, (_, i) => (
+                                                <option key={i + 1} value={i + 1}>{dayjs().month(i).format('MMMM')}</option>
+                                            ))}
+                                        </select>
+                                        <select value={year} onChange={e => setYear(e.target.value)} className="form-input" style={{ width: 100 }}>
+                                            {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+                                        </select>
+                                    </>
+                                ) : (
+                                    <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="form-input" />
+                                )}
                             </>
                         ) : (
                             <>
@@ -239,94 +254,78 @@ export default function Reports() {
 
             {loading && <div style={{ padding: 40, textAlign: 'center' }}>Loading Report...</div>}
 
-            {!loading && activeTab === 'monthly' && monthlyData && (
+            {!loading && activeTab === 'performance' && gridData && (
                 <div className="report-container printable" style={{ background: 'white', color: 'black', padding: '20px' }}>
                     <div style={{ textAlign: 'center', marginBottom: 10 }} className="print-header">
-                        <h3>Monthly Performance Report</h3>
-                        {departmentId && <p style={{ marginBottom: 2, fontWeight: 'bold' }}>Department: {departments.find(d => d.id == departmentId)?.name}</p>}
-                        <p style={{ marginBottom: 0 }}>From: 01/{month.toString().padStart(2, '0')}/{year} To: {monthlyData.meta.daysInMonth}/{month.toString().padStart(2, '0')}/{year}</p>
+                        <h3>{reportType.toUpperCase()} Performance Report</h3>
+                        <p style={{ marginBottom: 0 }}>Range: {gridData.meta.startDate} to {gridData.meta.endDate}</p>
                     </div>
 
-                    {monthlyData.data.map((emp, idx) => (
-                        <div key={emp.id} className="report-employee-row" style={{ marginBottom: 15, border: '2px solid #000', pageBreakInside: 'avoid' }}>
-                            <div style={{ display: 'flex' }}>
-                                {/* Left Info Block */}
-                                <div style={{ width: 140, borderRight: '2px solid #000', padding: '4px 6px', fontSize: 9, display: 'flex', flexDirection: 'column', justifyContent: 'center', lineHeight: 1.2 }}>
-                                    <div style={{ fontWeight: 'bold', fontSize: 10, wordBreak: 'break-word', lineHeight: 1.1, marginBottom: 4 }}>{emp.name}</div>
-                                    <div style={{ marginBottom: 1 }}>Code: {emp.code}</div>
-                                    <div style={{ marginBottom: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={emp.department}>Dept: {emp.department}</div>
-                                    <div style={{ marginBottom: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={emp.designation}>Desig: {emp.designation}</div>
-                                    <div style={{ marginTop: 4, borderTop: '1px solid #000', paddingTop: 4, fontSize: 8.5 }}>
-                                        <div>P: {emp.stats.present}, A: {emp.stats.absent}, WO: {emp.stats.wo}</div>
-                                        <div>Work: {emp.stats.totalWorkHrs}</div>
-                                        {emp.stats.totalOtHrs && emp.stats.totalOtHrs !== '00:00' && <div>OT: {emp.stats.totalOtHrs}</div>}
-                                        {emp.stats.totalLateHrs && emp.stats.totalLateHrs !== '00:00' && <div>Late: {emp.stats.totalLateHrs}</div>}
+                    {gridData.data.map((emp) => {
+                        const dayKeys = Object.keys(emp.days).sort();
+                        return (
+                            <div key={emp.id} className="report-employee-row" style={{ marginBottom: 15, border: '2px solid #000', pageBreakInside: 'avoid' }}>
+                                <div style={{ display: 'flex' }}>
+                                    <div style={{ width: 140, borderRight: '2px solid #000', padding: '4px 6px', fontSize: 9, display: 'flex', flexDirection: 'column', justifyContent: 'center', lineHeight: 1.2 }}>
+                                        <div style={{ fontWeight: 'bold', fontSize: 10, wordBreak: 'break-word', lineHeight: 1.1, marginBottom: 4 }}>{emp.name}</div>
+                                        <div style={{ marginBottom: 1 }}>Code: {emp.code}</div>
+                                        <div style={{ marginBottom: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Dept: {emp.department}</div>
+                                        <div style={{ marginTop: 4, borderTop: '1px solid #000', paddingTop: 4, fontSize: 8.5 }}>
+                                            <div>P: {emp.stats.present}, A: {emp.stats.absent}, WO: {emp.stats.wo}</div>
+                                            <div>Work: {emp.stats.totalWorkHrs}</div>
+                                            {emp.stats.totalOtHrs !== '00:00' && <div>OT: {emp.stats.totalOtHrs}</div>}
+                                        </div>
                                     </div>
-                                </div>
 
-                                {/* Right Grid */}
-                                <div style={{ flex: 1, overflowX: 'auto' }}>
-                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 9, textAlign: 'center', tableLayout: 'fixed' }}>
-                                        <thead>
-                                            <tr style={{ background: '#eee', borderBottom: 'none', height: 16 }}>
-                                                <th style={{ borderRight: '1px solid #ccc', width: 45, fontSize: 8 }}>Day</th>
-                                                {Array.from({ length: monthlyData.meta.daysInMonth }, (_, i) => {
-                                                    const dayOfWeek = dayjs(`${year}-${month.toString().padStart(2, '0')}-${(i + 1).toString().padStart(2, '0')}`).day();
-                                                    const dayLabels = ['SU', 'M', 'TU', 'W', 'TH', 'F', 'SA'];
-                                                    const isSunday = dayOfWeek === 0;
-                                                    return (
-                                                        <th key={`day-${i + 1}`} style={{ borderRight: '1px solid #ccc', fontSize: 7, fontWeight: isSunday ? 'bold' : 'normal', color: isSunday ? 'red' : '#333', padding: '1px 0' }}>{dayLabels[dayOfWeek]}</th>
-                                                    );
-                                                })}
-                                            </tr>
-                                            <tr style={{ background: '#eee', borderBottom: '1px solid #000', height: 18 }}>
-                                                <th style={{ borderRight: '1px solid #ccc', width: 45, fontSize: 8 }}>Date</th>
-                                                {Array.from({ length: monthlyData.meta.daysInMonth }, (_, i) => {
-                                                    const dateStr = `${(i + 1).toString().padStart(2, '0')}`;
-                                                    const dayOfWeek = dayjs(`${year}-${month.toString().padStart(2, '0')}-${(i + 1).toString().padStart(2, '0')}`).day();
-                                                    const isSunday = dayOfWeek === 0;
-                                                    return (
-                                                        <th key={i + 1} style={{ borderRight: '1px solid #ccc', fontSize: 7, color: isSunday ? 'red' : '#000', padding: '1px 0' }}>{dateStr}</th>
-                                                    );
-                                                })}
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {/* IN, OUT, Shift, Late, Status Rows ... (Same as before) */}
-                                            {['IN', 'OUT', 'Shift', 'Late', 'OT', 'Status'].map((metric, rIdx) => (
-                                                <tr key={metric} style={{ height: 18, background: metric === 'Status' ? '#f9f9f9' : 'transparent', borderTop: metric === 'Status' ? '1px solid #ccc' : 'none' }}>
-                                                    <td style={{ fontWeight: 'bold', borderRight: '1px solid #ccc', background: '#f0f0f0' }}>{metric}</td>
-                                                    {Array.from({ length: monthlyData.meta.daysInMonth }, (_, i) => {
-                                                        const d = i + 1;
-                                                        let content = '';
-                                                        let style = { borderRight: '1px solid #ccc', fontSize: metric === 'Shift' || metric === 'Late' || metric === 'OT' ? 8 : 9, background: emp.days[d]?.shift === 'OFF' ? '#ddd' : '#fff' };
-
-                                                        if (metric === 'IN') content = emp.days[d]?.in || '';
-                                                        if (metric === 'OUT') content = emp.days[d]?.out || '';
-                                                        if (metric === 'Shift') content = emp.days[d]?.shift || 'GEN';
-                                                        if (metric === 'Late') content = (emp.days[d]?.late === '00:00') ? '' : emp.days[d]?.late;
-                                                        if (metric === 'OT') {
-                                                            content = (emp.days[d]?.ot === '00:00') ? '' : emp.days[d]?.ot;
-                                                            if (content) style.color = '#7c3aed';
-                                                            style.fontWeight = content ? 'bold' : 'normal';
-                                                        }
-                                                        if (metric === 'Status') {
-                                                            content = emp.days[d]?.status;
-                                                            if (content === 'A') style.color = 'red';
-                                                            if (content === 'P') style.color = 'green';
-                                                            if (content === 'WO') style.color = 'blue';
-                                                            style.fontWeight = 'bold';
-                                                        }
-                                                        return <td key={d} style={style}>{content}</td>
+                                    <div style={{ flex: 1, overflowX: 'auto' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 9, textAlign: 'center', tableLayout: 'fixed' }}>
+                                            <thead>
+                                                <tr style={{ background: '#eee', borderBottom: '1px solid #000', height: 18 }}>
+                                                    <th style={{ borderRight: '1px solid #ccc', width: 45, fontSize: 8 }}>Metric</th>
+                                                    {dayKeys.map(k => {
+                                                        const d = dayjs(k);
+                                                        const isSunday = d.day() === 0;
+                                                        return (
+                                                            <th key={k} style={{ borderRight: '1px solid #ccc', fontSize: 7, color: isSunday ? 'red' : '#000' }}>
+                                                                <div>{d.format('ddd')}</div>
+                                                                <div>{d.date()}</div>
+                                                            </th>
+                                                        );
                                                     })}
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                            </thead>
+                                            <tbody>
+                                                {['IN', 'OUT', 'Shift', 'Late', 'OT', 'Status'].map((metric) => (
+                                                    <tr key={metric} style={{ height: 18 }}>
+                                                        <td style={{ fontWeight: 'bold', borderRight: '1px solid #ccc', background: '#f0f0f0' }}>{metric}</td>
+                                                        {dayKeys.map(k => {
+                                                            const day = emp.days[k];
+                                                            let content = '';
+                                                            let style = { borderRight: '1px solid #ccc', fontSize: 8, background: day?.shift === 'OFF' ? '#ddd' : '#fff' };
+
+                                                            if (metric === 'IN') content = day?.in || '';
+                                                            if (metric === 'OUT') content = day?.out || '';
+                                                            if (metric === 'Shift') content = day?.shift || '';
+                                                            if (metric === 'Late') content = day?.late === '00:00' ? '' : day?.late;
+                                                            if (metric === 'OT') content = day?.ot === '00:00' ? '' : day?.ot;
+                                                            if (metric === 'Status') {
+                                                                content = day?.status;
+                                                                if (content === 'A') style.color = 'red';
+                                                                if (content === 'P') style.color = 'green';
+                                                                if (content === 'WO') style.color = 'blue';
+                                                                style.fontWeight = 'bold';
+                                                            }
+                                                            return <td key={k} style={style}>{content}</td>;
+                                                        })}
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
 
@@ -334,7 +333,6 @@ export default function Reports() {
                 <div className="report-container printable" style={{ background: 'white', color: 'black', padding: '20px' }}>
                     <div style={{ textAlign: 'center', marginBottom: 20 }} className="print-header">
                         <h3>Day Wise Approval Report</h3>
-                        {departmentId && <p style={{ marginBottom: 2, fontWeight: 'bold' }}>Department: {departments.find(d => d.id == departmentId)?.name}</p>}
                         <p>From: {approvalStart} To: {approvalEnd}</p>
                     </div>
 
@@ -343,12 +341,9 @@ export default function Reports() {
                             <tr style={{ background: '#eee', borderBottom: '2px solid #000' }}>
                                 <th style={{ padding: 8, textAlign: 'left', border: '1px solid #ccc' }}>Date</th>
                                 <th style={{ padding: 8, textAlign: 'left', border: '1px solid #ccc' }}>Employee</th>
-                                <th style={{ padding: 8, textAlign: 'left', border: '1px solid #ccc' }}>Start Time</th>
-                                <th style={{ padding: 8, textAlign: 'left', border: '1px solid #ccc' }}>End Time</th>
+                                <th style={{ padding: 8, textAlign: 'left', border: '1px solid #ccc' }}>Time (In/Out)</th>
                                 <th style={{ padding: 8, textAlign: 'left', border: '1px solid #ccc', width: 150 }}>Location</th>
                                 <th style={{ padding: 8, textAlign: 'left', border: '1px solid #ccc' }}>Status</th>
-                                <th style={{ padding: 8, textAlign: 'left', border: '1px solid #ccc' }}>Reviewer</th>
-                                <th style={{ padding: 8, textAlign: 'left', border: '1px solid #ccc' }}>Review Date</th>
                                 <th style={{ padding: 8, textAlign: 'left', border: '1px solid #ccc' }}>Remarks</th>
                             </tr>
                         </thead>
@@ -358,34 +353,18 @@ export default function Reports() {
                                     <td style={{ padding: 6, border: '1px solid #ccc' }}>{row.date}</td>
                                     <td style={{ padding: 6, border: '1px solid #ccc' }}>
                                         <div style={{ fontWeight: 'bold' }}>{row.employeeName}</div>
-                                        <div style={{ fontSize: 9, color: 'gray' }}>{row.employeeCode} | {row.department}</div>
+                                        <div style={{ fontSize: 9, color: 'gray' }}>{row.employeeCode}</div>
                                     </td>
-                                    <td style={{ padding: 6, border: '1px solid #ccc' }}>{row.inTime}</td>
-                                    <td style={{ padding: 6, border: '1px solid #ccc' }}>{row.outTime}</td>
+                                    <td style={{ padding: 6, border: '1px solid #ccc' }}>{row.inTime} - {row.outTime}</td>
                                     <td style={{ padding: 6, border: '1px solid #ccc', fontSize: 9 }}>
-                                        <LocationCell
-                                            location={row.location}
-                                            address={addresses[row.id]}
-                                            onFetch={(lat, lng) => fetchOneAddress(row.id, lat, lng)}
-                                        />
-                                        {row.photoUrl && <div style={{ fontSize: 9, color: 'blue' }}>[Has Photo]</div>}
+                                        <LocationCell location={row.location} address={addresses[row.id]} onFetch={(lat, lng) => fetchOneAddress(row.id, lat, lng)} />
                                     </td>
                                     <td style={{ padding: 6, border: '1px solid #ccc' }}>
-                                        <span style={{
-                                            fontWeight: 'bold',
-                                            color: row.status === 'approved' ? 'green' : row.status === 'rejected' ? 'red' : 'orange'
-                                        }}>
-                                            {row.status.toUpperCase()}
-                                        </span>
+                                        <span style={{ fontWeight: 'bold', color: row.status === 'approved' ? 'green' : row.status === 'rejected' ? 'red' : 'orange' }}>{row.status.toUpperCase()}</span>
                                     </td>
-                                    <td style={{ padding: 6, border: '1px solid #ccc' }}>{row.reviewedBy}</td>
-                                    <td style={{ padding: 6, border: '1px solid #ccc' }}>{row.reviewedAt}</td>
                                     <td style={{ padding: 6, border: '1px solid #ccc' }}>{row.remarks}</td>
                                 </tr>
                             ))}
-                            {approvalData.length === 0 && (
-                                <tr><td colSpan={9} style={{ padding: 20, textAlign: 'center', color: 'gray' }}>No records found for this period.</td></tr>
-                            )}
                         </tbody>
                     </table>
                 </div>
@@ -394,77 +373,15 @@ export default function Reports() {
             <style>{`
 @media print {
     @page { size: landscape; margin: 3mm; }
-
-    /* CRITICAL: Reset main layout scrolling to allow full page printing */
     html, body, #root, .app-layout, .main-content, .content-area {
         height: auto !important;
-        min-height: auto !important;
         overflow: visible !important;
-        overflow-y: visible !important;
         display: block !important;
     }
-
-    @page {
-        size: landscape;
-        margin: 10mm;
-    }
-
-    body {
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-        background: white !important;
-        margin: 0;
-        padding: 0;
-    }
-
-    /* Force ALL text to be black */
-    .printable, .printable * {
-        color: #000 !important;
-        background-color: transparent;
-    }
-
-    /* Re-apply specific backgrounds for visual cues */
-    .printable td[style*="#ddd"] { background-color: #ddd !important; }
-    .printable td[style*="#f0f0f0"] { background-color: #f0f0f0 !important; }
-    .printable th[style*="#eee"] { background-color: #eee !important; }
-    .printable tr[style*="#eee"] { background-color: #eee !important; }
-
-    .no-print { display: none !important; }
-    .sidebar, .top-bar { display: none !important; }
-
-    .printable {
-        width: 100%;
-        max-width: 100%;
-    }
-
-    /* Scale down to fit on paper without shrinking dates */
-    .report-container {
-        padding: 5px !important;
-    }
-
-    .report-employee-row {
-        border: 1px solid #000 !important;
-        break-inside: avoid;
-        page-break-inside: avoid;
-    }
-
-    /* Make table fit properly on paper */
-    .report-employee-row table {
-        table-layout: fixed;
-        width: 100%;
-    }
-
-    .report-employee-row th,
-    .report-employee-row td {
-        border-color: #000 !important;
-        padding: 2px !important;
-        font-size: 8pt !important;
-        white-space: nowrap;
-        overflow: hidden;
-    }
-
-    h3 { margin-top: 0; font-size: 14pt; }
-    .print-header p { font-size: 10pt; }
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: white !important; }
+    .printable, .printable * { color: #000 !important; }
+    .no-print, .sidebar, .top-bar { display: none !important; }
+    .report-employee-row { break-inside: avoid; border: 1px solid #000 !important; }
 }
 `}</style>
         </div>
