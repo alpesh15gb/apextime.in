@@ -38,8 +38,6 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: apextime-in-frontend
-    ports:
-      - "3001:80"
     depends_on:
       - backend
     restart: unless-stopped
