@@ -3,7 +3,7 @@ version: '3.8'
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: apextime-cloud-postgres
+    container_name: apextime-in-postgres
     environment:
       POSTGRES_DB: apextime_in
       POSTGRES_USER: apextime
@@ -18,7 +18,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: apextime-cloud-backend
+    container_name: apextime-in-backend
     environment:
       DATABASE_URL: postgresql://apextime:apextime123@postgres:5432/apextime_in
       JWT_SECRET: ${JWT_SECRET:-apextime-cloud-jwt-secret-change-in-production}
@@ -37,7 +37,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: apextime-cloud-frontend
+    container_name: apextime-in-frontend
     ports:
       - "3000:80"
     depends_on:
@@ -46,7 +46,7 @@ services:
 
   nginx:
     image: nginx:alpine
-    container_name: apextime-cloud-nginx
+    container_name: apextime-in-nginx
     ports:
       - "8081:80"
       - "8443:443"
