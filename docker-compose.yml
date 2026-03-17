@@ -5,7 +5,7 @@ services:
     image: postgres:16-alpine
     container_name: apextime-cloud-postgres
     environment:
-      POSTGRES_DB: apextime_cloud
+      POSTGRES_DB: apextime_in
       POSTGRES_USER: apextime
       POSTGRES_PASSWORD: apextime123
     volumes:
@@ -20,7 +20,7 @@ services:
       dockerfile: Dockerfile
     container_name: apextime-cloud-backend
     environment:
-      DATABASE_URL: postgresql://apextime:apextime123@postgres:5432/apextime_cloud
+      DATABASE_URL: postgresql://apextime:apextime123@postgres:5432/apextime_in
       JWT_SECRET: ${JWT_SECRET:-apextime-cloud-jwt-secret-change-in-production}
       NODE_ENV: production
       PORT: 5003
