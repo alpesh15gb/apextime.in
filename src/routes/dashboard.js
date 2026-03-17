@@ -9,8 +9,6 @@ router.get('/', async (req, res, next) => {
 
         const [
             totalEmployees,
-            totalStudents,
-            totalBatches,
             todayTimesheets,
             pendingApprovals,
             pendingLeaves,
@@ -18,8 +16,6 @@ router.get('/', async (req, res, next) => {
             activeDevices,
         ] = await Promise.all([
             prisma.employee.count({ where: { tenantId: req.tenantId, status: 'active' } }),
-            prisma.student.count({ where: { tenantId: req.tenantId, status: 'active' } }),
-            prisma.batch.count({ where: { tenantId: req.tenantId, status: 'active' } }),
             prisma.timesheet.count({
                 where: { tenantId: req.tenantId, date: new Date(today), status: { in: ['auto_approved', 'approved'] } },
             }),
@@ -36,8 +32,6 @@ router.get('/', async (req, res, next) => {
         res.json({
             stats: {
                 totalEmployees,
-                totalStudents,
-                totalBatches,
                 todayPresent: todayTimesheets,
                 todayAbsent: totalEmployees - todayTimesheets,
                 pendingApprovals,

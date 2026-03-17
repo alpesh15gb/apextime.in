@@ -8,7 +8,7 @@ router.get('/', requireRole('super_admin'), async (req, res, next) => {
     try {
         const tenants = await prisma.tenant.findMany({
             include: {
-                _count: { select: { users: true, employees: true, students: true } },
+                _count: { select: { users: true, employees: true } },
             },
             orderBy: { name: 'asc' },
         });

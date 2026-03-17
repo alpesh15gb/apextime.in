@@ -15,8 +15,6 @@ const authRoutes = require('./routes/auth');
 const departmentRoutes = require('./routes/departments');
 const designationRoutes = require('./routes/designations');
 const employeeRoutes = require('./routes/employees');
-const academicRoutes = require('./routes/academic');
-const studentRoutes = require('./routes/students');
 const workShiftRoutes = require('./routes/workShifts');
 const timesheetRoutes = require('./routes/timesheets');
 const leaveRoutes = require('./routes/leaves');
@@ -75,8 +73,7 @@ app.use('/api/dashboard', tenantMiddleware, authMiddleware, dashboardRoutes);
 app.use('/api/departments', tenantMiddleware, authMiddleware, departmentRoutes);
 app.use('/api/designations', tenantMiddleware, authMiddleware, designationRoutes);
 app.use('/api/employees', tenantMiddleware, authMiddleware, employeeRoutes);
-app.use('/api/academic', tenantMiddleware, authMiddleware, academicRoutes);
-app.use('/api/students', tenantMiddleware, authMiddleware, studentRoutes);
+app.use('/api/employees', tenantMiddleware, authMiddleware, employeeRoutes);
 app.use('/api/work-shifts', tenantMiddleware, authMiddleware, workShiftRoutes);
 app.use('/api/attendance', tenantMiddleware, authMiddleware, timesheetRoutes);
 app.use('/api/leave', tenantMiddleware, authMiddleware, leaveRoutes);
@@ -99,7 +96,7 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5001;
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 ApexTime Cloud API running on port ${PORT}`);
+  console.log(`🚀 ApexTime Business API running on port ${PORT}`);
   console.log(`📦 Environment: ${process.env.NODE_ENV || 'development'}`);
 });
 

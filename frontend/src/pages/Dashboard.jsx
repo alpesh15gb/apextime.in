@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../lib/api';
-import { Users, UserSquare2, Clock, CheckCircle2, CalendarOff, HardDrive, AlertCircle, XCircle } from 'lucide-react';
+import { Users, Clock, CheckCircle2, CalendarOff, HardDrive, AlertCircle, XCircle } from 'lucide-react';
 
 export default function Dashboard() {
     const [stats, setStats] = useState(null);
@@ -24,10 +24,6 @@ export default function Dashboard() {
                 <Link to="/employees" className="stat-card">
                     <div className="stat-icon blue"><Users size={24} /></div>
                     <div className="stat-info"><h3>{s.totalEmployees}</h3><p>Total Employees</p></div>
-                </Link>
-                <Link to="/students" className="stat-card">
-                    <div className="stat-icon purple"><UserSquare2 size={24} /></div>
-                    <div className="stat-info"><h3>{s.totalStudents}</h3><p>Total Students</p></div>
                 </Link>
                 <Link to="/attendance" className="stat-card">
                     <div className="stat-icon green"><Clock size={24} /></div>

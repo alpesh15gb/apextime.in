@@ -1,4 +1,4 @@
-// ApexTime Cloud - Multi-Tenant School ERP Schema
+// ApexTime Business - Workforce Management System
 generator client {
   provider = "prisma-client-js"
   engineType = "library"
@@ -29,17 +29,7 @@ model Tenant {
   designations       Designation[]
   employees          Employee[]
   contacts           Contact[]
-  academicSessions   AcademicSession[]
-  programs           Program[]
-  divisions          Division[]
-  batches            Batch[]
-  subjects           Subject[]
-  batchSubjects      BatchSubject[]
-  classTimings       ClassTiming[]
-  timetables         Timetable[]
-  students           Student[]
-  guardians          Guardian[]
-  studentAttendances StudentAttendance[]
+  holidayYears       HolidayYear[]
   workShifts         WorkShift[]
   timesheets         Timesheet[]
   attendanceTypes    AttendanceType[]
@@ -63,9 +53,8 @@ model User {
   tenantId     Int      @map("tenant_id")
   username     String   // employee code or admin username
   passwordHash String   @map("password_hash")
-  role         String   @default("employee") // super_admin, admin, teacher, employee, student
+  role         String   @default("employee") // super_admin, admin, manager, supervisor, employee
   employeeId   Int?     @map("employee_id")
-  studentId    Int?     @map("student_id")
   status       String   @default("active") // active, inactive, locked
   lastLoginAt  DateTime? @map("last_login_at")
   config       Json?    @default("{}")
@@ -74,7 +63,6 @@ model User {
 
   tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   employee Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
-  student  Student?  @relation(fields: [studentId], references: [id], onDelete: SetNull)
 
   reviewedTimesheets   Timesheet[]       @relation("TimesheetReviewer")
   reviewedLeaves       LeaveRequest[]    @relation("LeaveReviewer")
@@ -111,8 +99,6 @@ model Contact {
 
   tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   employees Employee[]
-  students  Student[]
-  guardianContacts Guardian[] @relation("GuardianContact")
 
   @@map("contacts")
 }
@@ -172,9 +158,9 @@ model Employee {
   designationId Int?      @map("designation_id")
   joiningDate   DateTime  @map("joining_date") @db.Date
   leavingDate   DateTime? @map("leaving_date") @db.Date
-  type          String    @default("full_time") // full_time, part_time, contract, teaching, non_teaching
-  category      String    @default("confirmed") // confirmed, time_scale, contract, adhoc, part_time
-  leaveStartMonth Int?    @map("leave_start_month") // month (1-12) when leave system starts for this employee
+  type          String    @default("full_time") // full_time, part_time, contract
+  category      String    @default("confirmed") // confirmed, probation, contract
+  leaveStartMonth Int?    @map("leave_start_month")
   status        String    @default("active") // active, inactive, terminated
   config        Json?     @default("{}")
   meta          Json?     @default("{}")
@@ -192,7 +178,6 @@ model Employee {
   employeeAttendances  EmployeeAttendance[]
   leaveAllocations     LeaveAllocation[]
   leaveRequests        LeaveRequest[]
-  batchSubjects        BatchSubject[]
   compOffs             CompOff[]
   permissionEntries    PermissionEntry[]
   monthlyBalances      MonthlyBalance[]
@@ -202,10 +187,10 @@ model Employee {
 }
 
 // ─────────────────────────────────────────────
-// ACADEMIC STRUCTURE
+// BUSINESS / CALENDAR STRUCTURE
 // ─────────────────────────────────────────────
 
-model AcademicSession {
+model HolidayYear {
   id          Int      @id @default(autoincrement())
   uuid        String   @unique @default(uuid())
   tenantId    Int      @map("tenant_id")
@@ -222,207 +207,12 @@ model AcademicSession {
   leaveAllocations LeaveAllocation[]
 
   @@unique([tenantId, name])
-  @@map("academic_sessions")
-}
-
-model Program {
-  id          Int      @id @default(autoincrement())
-  uuid        String   @unique @default(uuid())
-  tenantId    Int      @map("tenant_id")
-  name        String   // "Primary", "Secondary", "Higher Secondary"
-  shortName   String?  @map("short_name")
-  position    Int      @default(0)
-  status      String   @default("active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  divisions Division[]
-
-  @@unique([tenantId, name])
-  @@map("programs")
-}
-
-model Division {
-  id        Int      @id @default(autoincrement())
-  uuid      String   @unique @default(uuid())
-  tenantId  Int      @map("tenant_id")
-  programId Int      @map("program_id")
-  name      String   // "Class 1", "Class 2", ...
-  shortName String?  @map("short_name")
-  position  Int      @default(0)
-  status    String   @default("active")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  program Program @relation(fields: [programId], references: [id], onDelete: Cascade)
-  batches Batch[]
-
-  @@unique([tenantId, programId, name])
-  @@map("divisions")
-}
-
-model Batch {
-  id         Int      @id @default(autoincrement())
-  uuid       String   @unique @default(uuid())
-  tenantId   Int      @map("tenant_id")
-  divisionId Int      @map("division_id")
-  name       String   // "Section A", "Section B"
-  maxStrength Int?    @map("max_strength")
-  position   Int      @default(0)
-  status     String   @default("active")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
-
-  tenant              Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  division            Division            @relation(fields: [divisionId], references: [id], onDelete: Cascade)
-  students            Student[]
-  batchSubjects       BatchSubject[]
-  timetables          Timetable[]
-  studentAttendances  StudentAttendance[]
-
-  @@unique([tenantId, divisionId, name])
-  @@map("batches")
-}
-
-model Subject {
-  id        Int      @id @default(autoincrement())
-  uuid      String   @unique @default(uuid())
-  tenantId  Int      @map("tenant_id")
-  name      String
-  code      String?
-  type      String   @default("theory") // theory, practical, activity
-  position  Int      @default(0)
-  status    String   @default("active")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  batchSubjects BatchSubject[]
-
-  @@unique([tenantId, name])
-  @@map("subjects")
-}
-
-model BatchSubject {
-  id        Int      @id @default(autoincrement())
-  tenantId  Int      @map("tenant_id")
-  batchId   Int      @map("batch_id")
-  subjectId Int      @map("subject_id")
-  teacherId Int?     @map("teacher_id") // employee
-  createdAt DateTime @default(now()) @map("created_at")
-
-  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  batch   Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  subject Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-  teacher Employee? @relation(fields: [teacherId], references: [id], onDelete: SetNull)
-
-  @@unique([batchId, subjectId])
-  @@map("batch_subjects")
-}
-
-model ClassTiming {
-  id        Int      @id @default(autoincrement())
-  uuid      String   @unique @default(uuid())
-  tenantId  Int      @map("tenant_id")
-  name      String
-  sessions  Json     @default("[]") // [{name, startTime, endTime, isBreak}]
-  status    String   @default("active")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  timetables Timetable[]
-
-  @@map("class_timings")
-}
-
-model Timetable {
-  id            Int      @id @default(autoincrement())
-  uuid          String   @unique @default(uuid())
-  tenantId      Int      @map("tenant_id")
-  batchId       Int      @map("batch_id")
-  classTimingId Int      @map("class_timing_id")
-  day           String   // monday, tuesday, ...
-  allocations   Json     @default("[]") // [{sessionIndex, subjectId, teacherId}]
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  batch       Batch       @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  classTiming ClassTiming @relation(fields: [classTimingId], references: [id], onDelete: Cascade)
-
-  @@unique([batchId, day])
-  @@map("timetables")
+  @@map("holiday_years")
 }
 
 // ─────────────────────────────────────────────
-// STUDENT MANAGEMENT
+// LEAVE & ATTENDANCE MODELS (ALREADY WORKPLACE ORIENTED)
 // ─────────────────────────────────────────────
-
-model Student {
-  id           Int       @id @default(autoincrement())
-  uuid         String    @unique @default(uuid())
-  tenantId     Int       @map("tenant_id")
-  contactId    Int       @map("contact_id")
-  admissionNo  String    @map("admission_no")
-  rollNo       String?   @map("roll_no")
-  batchId      Int?      @map("batch_id")
-  admissionDate DateTime? @map("admission_date") @db.Date
-  status       String    @default("active") // active, passed_out, transferred, dropped
-  meta         Json?     @default("{}")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-
-  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  contact   Contact    @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  batch     Batch?     @relation(fields: [batchId], references: [id], onDelete: SetNull)
-  users     User[]
-  guardians Guardian[]
-
-  @@unique([tenantId, admissionNo])
-  @@map("students")
-}
-
-model Guardian {
-  id          Int      @id @default(autoincrement())
-  uuid        String   @unique @default(uuid())
-  tenantId    Int      @map("tenant_id")
-  contactId   Int      @map("contact_id")
-  studentId   Int      @map("student_id")
-  relation    String   // father, mother, guardian
-  isPrimary   Boolean  @default(false) @map("is_primary")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  contact Contact @relation("GuardianContact", fields: [contactId], references: [id], onDelete: Cascade)
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-
-  @@map("guardians")
-}
-
-model StudentAttendance {
-  id        Int      @id @default(autoincrement())
-  uuid      String   @unique @default(uuid())
-  tenantId  Int      @map("tenant_id")
-  batchId   Int      @map("batch_id")
-  date      DateTime @db.Date
-  session   String?  // morning, afternoon, full_day
-  subjectId Int?     @map("subject_id")
-  values    Json     @default("{}") // { studentId: "present|absent|late|half_day" }
-  meta      Json?    @default("{}")
-  createdBy Int?     @map("created_by")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  batch  Batch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
-
-  @@unique([batchId, date, session])
-  @@map("student_attendances")
-}
 
 // ─────────────────────────────────────────────
 // EMPLOYEE ATTENDANCE & TIMESHEETS
@@ -557,7 +347,7 @@ model LeaveAllocation {
   tenantId          Int      @map("tenant_id")
   employeeId        Int      @map("employee_id")
   leaveTypeId       Int      @map("leave_type_id")
-  academicSessionId Int?     @map("academic_session_id")
+  holidayYearId     Int?     @map("holiday_year_id")
   allocated         Float    @default(0)
   used              Float    @default(0)
   balance           Float    @default(0)
@@ -567,9 +357,9 @@ model LeaveAllocation {
   tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   employee        Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   leaveType       LeaveType        @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
-  academicSession AcademicSession? @relation(fields: [academicSessionId], references: [id], onDelete: SetNull)
+  holidayYear     HolidayYear?     @relation(fields: [holidayYearId], references: [id], onDelete: SetNull)
 
-  @@unique([employeeId, leaveTypeId, academicSessionId])
+  @@unique([employeeId, leaveTypeId, holidayYearId])
   @@map("leave_allocations")
 }
 
@@ -608,8 +398,8 @@ model Announcement {
   tenantId     Int       @map("tenant_id")
   title        String
   body         String
-  audienceType String    @map("audience_type") // all, employees, students, batch, department
-  audienceIds  Json?     @map("audience_ids") @default("[]") // specific batch/dept IDs
+  audienceType String    @map("audience_type") // all, employees, department
+  audienceIds  Json?     @map("audience_ids") @default("[]") // specific dept IDs
   priority     String    @default("normal") // low, normal, high, urgent
   createdBy    Int       @map("created_by")
   publishedAt  DateTime? @map("published_at")

@@ -13,14 +13,14 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-    console.log('🌱 Seeding database...');
+    console.log('🌱 Seeding ApexTime Business database...');
 
     // 1. Create a default tenant
     const tenant = await prisma.tenant.upsert({
         where: { slug: 'demo' },
         update: {},
         create: {
-            name: 'Demo School',
+            name: 'ApexTime Demo Business',
             slug: 'demo',
             status: 'active',
         },
@@ -92,29 +92,29 @@ async function main() {
 
     // 6. Create demo department + designation
     const dept = await prisma.department.upsert({
-        where: { tenantId_name: { tenantId: tenant.id, name: 'Teaching' } },
+        where: { tenantId_name: { tenantId: tenant.id, name: 'Operations' } },
         update: {},
-        create: { tenantId: tenant.id, name: 'Teaching' },
+        create: { tenantId: tenant.id, name: 'Operations' },
     });
 
     const desig = await prisma.designation.upsert({
-        where: { tenantId_name: { tenantId: tenant.id, name: 'Teacher' } },
+        where: { tenantId_name: { tenantId: tenant.id, name: 'Manager' } },
         update: {},
-        create: { tenantId: tenant.id, name: 'Teacher', departmentId: dept.id },
+        create: { tenantId: tenant.id, name: 'Manager', departmentId: dept.id },
     });
 
     // 7. Create demo employee
     let contact = await prisma.contact.findFirst({
-        where: { tenantId: tenant.id, firstName: 'Demo' },
+        where: { tenantId: tenant.id, firstName: 'John' },
     });
 
     if (!contact) {
         contact = await prisma.contact.create({
             data: {
                 tenantId: tenant.id,
-                firstName: 'Demo',
-                lastName: 'Teacher',
-                email: 'demo@apextime.in',
+                firstName: 'John',
+                lastName: 'Doe',
+                email: 'john.doe@apextime.in',
                 phone: '9999999999',
                 gender: 'male',
             },
@@ -149,8 +149,8 @@ async function main() {
     });
     console.log('  ✅ Demo employee: EMP001 (password: EMP001)');
 
-    // 8. Create academic session
-    await prisma.academicSession.upsert({
+    // 8. Create holiday year
+    await prisma.holidayYear.upsert({
         where: { tenantId_name: { tenantId: tenant.id, name: '2025-2026' } },
         update: {},
         create: {
@@ -162,13 +162,13 @@ async function main() {
             isActive: true,
         },
     });
-    console.log('  ✅ Academic session: 2025-2026');
+    console.log('  ✅ Holiday Year: 2025-2026');
 
     // 9. Create work shift
     const defaultRecords = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].map(day => ({
-        day, startTime: '09:00', endTime: '17:00', isOvernight: false, isOff: false,
+        day, startTime: '09:00', endTime: '18:00', isOvernight: false, isOff: false,
     }));
-    defaultRecords.push({ day: 'sunday', startTime: '09:00', endTime: '17:00', isOvernight: false, isOff: true });
+    defaultRecords.push({ day: 'sunday', startTime: '09:00', endTime: '18:00', isOvernight: false, isOff: true });
 
     await prisma.workShift.upsert({
         where: { uuid: '00000000-0000-0000-0000-000000000001' },
@@ -176,13 +176,13 @@ async function main() {
         create: {
             uuid: '00000000-0000-0000-0000-000000000001',
             tenantId: tenant.id,
-            name: 'General Shift',
+            name: 'Standard Shift',
             records: defaultRecords,
         },
     });
-    console.log('  ✅ Work shift: General Shift (Mon-Sat 9am-5pm)');
+    console.log('  ✅ Work shift: Standard Shift (Mon-Sat 9am-6pm)');
 
-    console.log('\n🎉 Seed complete!\n');
+    console.log('\n🎉 ApexTime Business Seed complete!\n');
     console.log('Login credentials:');
     console.log('  Super Admin: superadmin / super123');
     console.log('  Admin:       admin / admin123');

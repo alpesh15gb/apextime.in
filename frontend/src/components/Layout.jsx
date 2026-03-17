@@ -2,8 +2,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Users, Building2, Clock, CheckCircle2,
-    CalendarOff, GraduationCap, UserSquare2, Megaphone,
-    HardDrive, LogOut, Settings, FileText, Briefcase, CalendarCheck
+    CalendarOff, Megaphone, HardDrive, LogOut, Settings, FileText, Briefcase
 } from 'lucide-react';
 
 export default function Layout() {
@@ -26,7 +25,6 @@ export default function Layout() {
                 { to: '/employees', icon: <Users />, label: 'Employees' },
                 { to: '/departments', icon: <Building2 />, label: 'Departments' },
                 { to: '/designations', icon: <Briefcase />, label: 'Designations' },
-                { to: '/students', icon: <UserSquare2 />, label: 'Students' },
             ]
         },
         {
@@ -39,11 +37,6 @@ export default function Layout() {
             ]
         },
         {
-            section: 'Academic', items: [
-                { to: '/academic', icon: <GraduationCap />, label: 'Structure' },
-            ]
-        },
-        {
             section: 'System', items: [
                 { to: '/announcements', icon: <Megaphone />, label: 'Announcements' },
                 { to: '/devices', icon: <HardDrive />, label: 'Devices' },
@@ -53,9 +46,12 @@ export default function Layout() {
 
     // Add Super Admin specific routes
     if (user?.role === 'super_admin') {
-        navItems.find(s => s.section === 'System')?.items.push(
-            { to: '/tenants', icon: <Building2 />, label: 'Organizations' }
-        );
+        const systemSection = navItems.find(s => s.section === 'System');
+        if (systemSection) {
+            systemSection.items.push(
+                { to: '/tenants', icon: <Building2 />, label: 'Organizations' }
+            );
+        }
     }
 
     return (
@@ -65,8 +61,8 @@ export default function Layout() {
                     <div className="sidebar-brand">
                         <div className="sidebar-brand-icon">AT</div>
                         <div>
-                            <h1>ApexTime</h1>
-                            <p>{user?.tenant?.name || 'Cloud'}</p>
+                            <h1>ApexTime Business</h1>
+                            <p>{user?.tenant?.name || 'Portal'}</p>
                         </div>
                     </div>
                 </div>

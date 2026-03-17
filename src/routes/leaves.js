@@ -40,14 +40,14 @@ router.get('/allocations', requireRole('admin', 'super_admin'), async (req, res,
         const { employeeId, sessionId } = req.query;
         const where = { tenantId: req.tenantId };
         if (employeeId) where.employeeId = parseInt(employeeId);
-        if (sessionId) where.academicSessionId = parseInt(sessionId);
+        if (sessionId) where.holidayYearId = parseInt(sessionId);
 
         const allocations = await prisma.leaveAllocation.findMany({
             where,
             include: {
                 employee: { include: { contact: true } },
                 leaveType: true,
-                academicSession: true,
+                holidayYear: true,
             },
         });
         res.json(allocations);
@@ -56,20 +56,20 @@ router.get('/allocations', requireRole('admin', 'super_admin'), async (req, res,
 
 router.post('/allocate', requireRole('admin', 'super_admin'), async (req, res, next) => {
     try {
-        const { employeeId, leaveTypeId, academicSessionId, allocated } = req.body;
+        const { employeeId, leaveTypeId, holidayYearId, allocated } = req.body;
         const allocation = await prisma.leaveAllocation.upsert({
             where: {
-                employeeId_leaveTypeId_academicSessionId: {
+                employeeId_leaveTypeId_holidayYearId: {
                     employeeId: parseInt(employeeId),
                     leaveTypeId: parseInt(leaveTypeId),
-                    academicSessionId: parseInt(academicSessionId),
+                    holidayYearId: parseInt(holidayYearId),
                 },
             },
             create: {
                 tenantId: req.tenantId,
                 employeeId: parseInt(employeeId),
                 leaveTypeId: parseInt(leaveTypeId),
-                academicSessionId: parseInt(academicSessionId),
+                holidayYearId: parseInt(holidayYearId),
                 allocated: parseFloat(allocated),
                 balance: parseFloat(allocated),
             },

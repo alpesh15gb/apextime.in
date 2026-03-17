@@ -19,7 +19,7 @@ export default function Login() {
         setLoading(true);
         try {
             const user = await login(username, password, slug);
-            if (user.role === 'employee' || user.role === 'teacher') {
+            if (user.role === 'employee') {
                 navigate('/portal');
             } else {
                 navigate('/');
@@ -36,7 +36,7 @@ export default function Login() {
             <div className="login-card">
                 <div className="login-header">
                     <div className="logo">AT</div>
-                    <h1>ApexTime Cloud</h1>
+                    <h1>ApexTime Business</h1>
                     <p>Sign in to your account</p>
                 </div>
 
@@ -52,7 +52,7 @@ export default function Login() {
                         <input
                             className="form-input"
                             type="text"
-                            placeholder="e.g. school-name"
+                            placeholder="e.g. your-business"
                             value={slug}
                             onChange={(e) => setSlug(e.target.value.toLowerCase().trim())}
                         />

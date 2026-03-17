@@ -10,8 +10,6 @@ import Timesheets from './pages/Timesheets';
 import Approvals from './pages/Approvals';
 import LeaveRequests from './pages/LeaveRequests';
 import EmployeePortal from './pages/EmployeePortal';
-import AcademicStructure from './pages/AcademicStructure';
-import Students from './pages/Students';
 import Announcements from './pages/Announcements';
 import Devices from './pages/Devices';
 import Tenants from './pages/Tenants';
@@ -45,8 +43,6 @@ function AppRoutes() {
         <Route path="attendance" element={<Timesheets />} />
         <Route path="approvals" element={<Approvals />} />
         <Route path="leave-requests" element={<LeaveRequests />} />
-        <Route path="academic" element={<AcademicStructure />} />
-        <Route path="students" element={<Students />} />
         <Route path="announcements" element={<Announcements />} />
         <Route path="devices" element={<Devices />} />
         <Route path="reports" element={<Reports />} />
@@ -57,7 +53,7 @@ function AppRoutes() {
       {/* Employee portal */}
       <Route path="/portal" element={<ProtectedRoute><EmployeePortal /></ProtectedRoute>} />
 
-      <Route path="*" element={<Navigate to={user?.role === 'employee' || user?.role === 'teacher' ? '/portal' : '/'} />} />
+      <Route path="*" element={<Navigate to={user?.role === 'employee' ? '/portal' : '/'} />} />
     </Routes>
   );
 }
