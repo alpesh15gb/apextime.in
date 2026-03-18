@@ -23,6 +23,7 @@ const LocationCell = ({ location, address, onFetch }) => {
 };
 
 const DailyReport = ({ data, meta }) => {
+    const { user } = useAuth();
     // Group by department
     const departments = {};
     data.forEach(emp => {
@@ -41,9 +42,12 @@ const DailyReport = ({ data, meta }) => {
 
     return (
         <div className="report-container printable" style={{ background: 'white', color: 'black', padding: '10px', fontSize: '11px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
+            <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 'bold', textTransform: 'uppercase' }}>{user?.tenant?.name || 'APEXTIME BUSINESS'}</h2>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 15, fontSize: 10 }}>
                 <div>Report Date : {dayjs(meta.startDate).format('DD/MM/YYYY')}</div>
-                <div style={{ fontWeight: 'bold', fontSize: 16 }}>Daily Performance Report</div>
+                <div style={{ fontWeight: 'bold', fontSize: 14 }}>Daily Performance Report</div>
                 <div>Print Date : {dayjs().format('DD/MM/YYYY')}</div>
             </div>
 
