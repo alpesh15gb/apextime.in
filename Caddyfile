@@ -1,0 +1,17 @@
+{
+    email alpesh@apextime.in
+}
+
+apextime.in, www.apextime.in {
+    # Proxy API and iClock to backend
+    reverse_proxy /api/* backend:5003
+    reverse_proxy /iclock/* backend:5003
+    
+    # Proxy everything else to frontend
+    reverse_proxy /* frontend:80
+}
+
+# Biometric machine (HTTP only)
+:8081 {
+    reverse_proxy /iclock/* backend:5003
+}

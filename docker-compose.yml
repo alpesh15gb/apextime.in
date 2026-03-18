@@ -42,31 +42,23 @@ services:
       - backend
     restart: unless-stopped
 
-  nginx:
-    image: nginx:alpine
-    container_name: apextime-in-nginx
+  caddy:
+    image: caddy:latest
+    container_name: apextime-in-caddy
+    restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
       - "8081:8081"
     volumes:
-      - ./nginx/conf.d:/etc/nginx/conf.d
-      - ./nginx/ssl:/etc/nginx/ssl
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
     depends_on:
       - backend
       - frontend
-    restart: unless-stopped
-
-  certbot:
-    image: certbot/certbot
-    container_name: apextime-in-certbot
-    volumes:
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
-    restart: unless-stopped
 
 volumes:
   pgdata:
+  caddy_data:
+  caddy_config:
