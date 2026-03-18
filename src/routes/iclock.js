@@ -323,13 +323,17 @@ router.get(['/getrequest', '/getrequest.aspx'], async (req, res, next) => {
 router.post(['/devicecmd', '/devicecmd.aspx'], async (req, res, next) => {
     try {
         // ID=123&Return=0
-        let { ID, Return } = req.body;
-
-        // Fallback to query if body empty
-        if (!ID && req.query.ID) {
-            ID = req.query.ID;
-            Return = req.query.Return;
+        let bodyObj = req.body || {};
+        if (typeof req.body === 'string') {
+            try {
+                bodyObj = require('querystring').parse(req.body);
+            } catch (e) {
+                // Not URL encoded, try to look at query as fallback
+            }
         }
+
+        let ID = bodyObj.ID || req.query.ID;
+        let Return = bodyObj.Return !== undefined ? bodyObj.Return : req.query.Return;
 
         if (ID) {
             const cmdId = parseInt(ID);
@@ -338,7 +342,7 @@ router.post(['/devicecmd', '/devicecmd.aspx'], async (req, res, next) => {
                 where: { id: cmdId },
                 data: {
                     status: Return == 0 ? 'executed' : 'failed',
-                    response: JSON.stringify(req.body || req.query),
+                    response: JSON.stringify(bodyObj),
                     updatedAt: new Date(),
                 },
             });
