@@ -89,11 +89,28 @@ router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
             data: { lastSeenAt: new Date(), status: 'active' },
         });
 
-        const rawBody = (typeof req.body === 'string' ? req.body : JSON.stringify(req.body)) || '';
+        // Robust body capture: Some ADMS devices don't send Content-Type, so express.text might fail.
+        let rawBody = (typeof req.body === 'string' ? req.body : JSON.stringify(req.body)) || '';
+
+        if (!rawBody || rawBody === '{}' || rawBody.length === 0) {
+            // Try to read the raw stream manually if body is empty
+            const buffers = [];
+            for await (const chunk of req) {
+                buffers.push(chunk);
+            }
+            if (buffers.length > 0) {
+                rawBody = Buffer.concat(buffers).toString();
+            }
+        }
 
         // Debug logging
         console.log(`[iClock] Received POST from ${SN}. Content-Type: ${req.headers['content-type']}. Body length: ${rawBody.length}`);
-        if (rawBody.length > 0) console.log(`[iClock] Body preview: ${rawBody.substring(0, 100)}`);
+        if (rawBody.length > 0) {
+            console.log(`[iClock] Body preview: ${rawBody.substring(0, 200)}`);
+        } else {
+            // Heartbeat POST or really empty
+            return res.send('OK: 0\r\n');
+        }
 
         if (table === 'ATTLOG' || !table) {
             // Parse attendance log lines
