@@ -183,6 +183,7 @@ const ApexReportMonthly = ({ data, meta }) => {
                             <thead>
                                 <tr style={{ borderBottom: '1px solid #000' }}>
                                     <th style={{ textAlign: 'left', padding: '4px 2px' }}>Date</th>
+                                    <th style={{ textAlign: 'center', padding: '4px 2px' }}>Shift</th>
                                     <th style={{ textAlign: 'center', padding: '4px 2px' }}>First IN</th>
                                     <th style={{ textAlign: 'center', padding: '4px 2px' }}>Last OUT</th>
                                     <th style={{ textAlign: 'center', padding: '4px 2px' }}>Gross Hours</th>
@@ -199,6 +200,7 @@ const ApexReportMonthly = ({ data, meta }) => {
                                     return (
                                         <tr key={k} style={{ color: isHoliday ? '#666' : 'black' }}>
                                             <td style={{ padding: '2px' }}>{dayjs(k).format('DD/MM/YYYY')}</td>
+                                            <td style={{ textAlign: 'center', fontSize: '10px' }}>{day?.shift || '-'}</td>
                                             <td style={{ textAlign: 'center' }}>{day?.in || ''}</td>
                                             <td style={{ textAlign: 'center' }}>{day?.out || ''}</td>
                                             <td style={{ textAlign: 'center' }}>{day?.workHrs !== '00:00' ? day?.workHrs : ''}</td>
@@ -212,7 +214,7 @@ const ApexReportMonthly = ({ data, meta }) => {
                             </tbody>
                             <tfoot>
                                 <tr style={{ borderTop: '2px solid #000', fontWeight: 'bold' }}>
-                                    <td colSpan={3} style={{ textAlign: 'right', padding: '8px' }}>Total</td>
+                                    <td colSpan={4} style={{ textAlign: 'right', padding: '8px' }}>Total</td>
                                     <td style={{ textAlign: 'center' }}>{totals.gross}</td>
                                     <td style={{ textAlign: 'center' }}>{totals.extra}</td>
                                     <td style={{ textAlign: 'center' }}>{totals.net}</td>

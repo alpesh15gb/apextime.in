@@ -184,7 +184,9 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                 if (record) {
                     if (record.inAt) { inTime = dayjs(record.inAt).format('HH:mm'); status = 'P'; }
                     if (record.outAt) { outTime = dayjs(record.outAt).format('HH:mm'); workMs = dayjs(record.outAt).diff(dayjs(record.inAt)); }
-                    if (status === 'P' && dayOfWeek === 0 && workMs > 0) { otMs = workMs; ot = formatDuration(otMs); }
+                    if (status === 'P' && dayOfWeek === 0 && workMs > 0) { 
+                        // Overridden for flexible environment. Only calculate OT if shift assigned.
+                    }
                 }
             }
 
