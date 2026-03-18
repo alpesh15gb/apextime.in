@@ -41,9 +41,10 @@ router.get(['/cdata', '/cdata.aspx'], async (req, res, next) => {
             // Device is requesting its full config
             const config = [
                 'GET OPTION FROM: ' + SN,
-                'Stamp=9999',
-                'OpStamp=9999',
-                'PhotoStamp=9999',
+                'Registry=1',
+                'Stamp=1',
+                'OpStamp=1',
+                'PhotoStamp=1',
                 'ErrorDelay=60',
                 'Delay=30',
                 'TransTimes=00:00;14:05',
@@ -52,14 +53,14 @@ router.get(['/cdata', '/cdata.aspx'], async (req, res, next) => {
                 'ServerVer=2.4.1',
                 'ATTLOGStamp=0',
                 'OPERLOGStamp=0',
-            ].join('\r\n');
+            ].join('\r\n') + '\r\n';
             return res.send(config);
         }
 
-        res.send('OK');
+        res.send('OK\r\n');
     } catch (error) {
         console.error('[iClock] GET error:', error);
-        res.status(500).send('ERROR');
+        res.status(500).send('ERROR\r\n');
     }
 });
 
@@ -258,15 +259,15 @@ router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
             }
 
             console.log(`[iClock] Device ${SN}: processed ${processed}/${lines.length} records`);
-            return res.send(`OK: ${processed}`);
+            return res.send(`OK: ${processed}\r\n`);
         }
 
         if (table === 'OPERLOG') {
             // Operation log — ignore for now
-            return res.send('OK: 0');
+            return res.send('OK: 0\r\n');
         }
 
-        res.send('OK: 0');
+        res.send('OK: 0\r\n');
     } catch (error) {
         console.error('[iClock] POST error:', error);
         res.status(500).send('ERROR');
@@ -300,20 +301,20 @@ router.get(['/getrequest', '/getrequest.aspx'], async (req, res, next) => {
             if (cmd) {
                 // Send command: C:ID:COMMAND
                 // Example: C:1:DATA QUERY ATTLOG ...
-                const payload = `C:${cmd.id}:${cmd.command}`;
+                const payload = `C:${cmd.id}:${cmd.command}\r\n`;
                 await prisma.deviceCommand.update({
                     where: { id: cmd.id },
                     data: { status: 'sent' },
                 });
-                console.log(`[iClock] Sending command to ${SN}: ${payload}`);
+                console.log(`[iClock] Sending command to ${SN}: ${payload.trim()}`);
                 return res.send(payload);
             }
         }
 
-        res.send('OK');
+        res.send('OK\r\n');
     } catch (error) {
         console.error('[iClock] GET request error:', error);
-        res.send('OK');
+        res.send('OK\r\n');
     }
 });
 
@@ -343,10 +344,10 @@ router.post(['/devicecmd', '/devicecmd.aspx'], async (req, res, next) => {
             });
             console.log(`[iClock] Command ${cmdId} response: ${Return}`);
         }
-        res.send('OK');
+        res.send('OK\r\n');
     } catch (error) {
         console.error('[iClock] devicecmd error:', error);
-        res.send('OK');
+        res.send('OK\r\n');
     }
 });
 
