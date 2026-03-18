@@ -137,8 +137,24 @@ const ApexReportMonthly = ({ data, meta }) => {
                     gross: sumDurations(dayKeys.map(k => emp.days[k]?.workHrs)),
                     extra: sumDurations(dayKeys.map(k => emp.days[k]?.ot)),
                     less: sumDurations(dayKeys.map(k => emp.days[k]?.early)),
-                    net: '00:00' // Will calc net manually if needed
+                    net: '00:00'
                 };
+
+                // Helper to subtract durations
+                const subtractDurations = (total, extra) => {
+                    if (!total || total === '00:00') return '00:00';
+                    if (!extra || extra === '00:00') return total;
+                    const [th, tm] = total.split(':').map(Number);
+                    const [eh, em] = extra.split(':').map(Number);
+                    let totalMins = (th * 60 + tm) - (eh * 60 + em);
+                    if (totalMins < 0) totalMins = 0;
+                    const h = Math.floor(totalMins / 60);
+                    const m = totalMins % 60;
+                    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+                };
+
+                const netWorkDurations = dayKeys.map(k => subtractDurations(emp.days[k]?.workHrs, emp.days[k]?.ot));
+                totals.net = sumDurations(netWorkDurations);
 
                 return (
                     <div key={emp.id} style={{ marginBottom: 40, pageBreakAfter: 'always' }}>
@@ -187,7 +203,7 @@ const ApexReportMonthly = ({ data, meta }) => {
                                             <td style={{ textAlign: 'center' }}>{day?.out || ''}</td>
                                             <td style={{ textAlign: 'center' }}>{day?.workHrs !== '00:00' ? day?.workHrs : ''}</td>
                                             <td style={{ textAlign: 'center' }}>{day?.ot !== '00:00' ? day?.ot : ''}</td>
-                                            <td style={{ textAlign: 'center' }}>{day?.workHrs !== '00:00' ? day?.workHrs : ''}</td>
+                                            <td style={{ textAlign: 'center' }}>{subtractDurations(day?.workHrs, day?.ot) !== '00:00' ? subtractDurations(day?.workHrs, day?.ot) : ''}</td>
                                             <td style={{ textAlign: 'center' }}>{day?.ot !== '00:00' ? day?.ot : ''}</td>
                                             <td style={{ textAlign: 'center' }}>{day?.early !== '00:00' ? day?.early : ''}</td>
                                         </tr>
@@ -199,7 +215,7 @@ const ApexReportMonthly = ({ data, meta }) => {
                                     <td colSpan={3} style={{ textAlign: 'right', padding: '8px' }}>Total</td>
                                     <td style={{ textAlign: 'center' }}>{totals.gross}</td>
                                     <td style={{ textAlign: 'center' }}>{totals.extra}</td>
-                                    <td style={{ textAlign: 'center' }}>{totals.gross}</td>
+                                    <td style={{ textAlign: 'center' }}>{totals.net}</td>
                                     <td style={{ textAlign: 'center' }}>{totals.extra}</td>
                                     <td style={{ textAlign: 'center' }}>{totals.less}</td>
                                 </tr>
