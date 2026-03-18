@@ -19,15 +19,22 @@ router.get('/', requireRole('super_admin'), async (req, res, next) => {
 // POST /api/tenants - Create new tenant with admin user
 router.post('/', requireRole('super_admin'), async (req, res, next) => {
     try {
-        const { name, slug, domain, adminUsername, adminPassword } = req.body;
+        const { name, slug, domain, adminUsername, adminPassword, subscriptionDays } = req.body;
 
         if (!name || !slug) {
             return res.status(400).json({ error: 'Name and slug are required' });
         }
 
+        const subscriptionExpiry = subscriptionDays ? new Date(Date.now() + parseInt(subscriptionDays) * 24 * 60 * 60 * 1000) : null;
+
         const result = await prisma.$transaction(async (tx) => {
             const tenant = await tx.tenant.create({
-                data: { name, slug: slug.toLowerCase(), domain },
+                data: { 
+                    name, 
+                    slug: slug.toLowerCase(), 
+                    domain,
+                    subscriptionExpiry
+                },
             });
 
             // Create admin user
@@ -72,10 +79,18 @@ router.post('/', requireRole('super_admin'), async (req, res, next) => {
 // PUT /api/tenants/:uuid
 router.put('/:uuid', requireRole('super_admin'), async (req, res, next) => {
     try {
-        const { name, domain, status, config, logo } = req.body;
+        const { name, domain, status, config, logo, subscriptionDays } = req.body;
+        
+        let updateData = { name, domain, status, config, logo };
+        
+        if (subscriptionDays !== undefined) {
+             // If days provided, add to current date (renewal/extension)
+             updateData.subscriptionExpiry = new Date(Date.now() + parseInt(subscriptionDays) * 24 * 60 * 60 * 1000);
+        }
+
         const tenant = await prisma.tenant.update({
             where: { uuid: req.params.uuid },
-            data: { name, domain, status, config, logo },
+            data: updateData,
         });
         res.json(tenant);
     } catch (error) { next(error); }

@@ -13,16 +13,17 @@ datasource db {
 // ─────────────────────────────────────────────
 
 model Tenant {
-  id        Int      @id @default(autoincrement())
-  uuid      String   @unique @default(uuid())
-  name      String
-  slug      String   @unique // subdomain: slug.apextime.in
-  domain    String?  @unique // custom domain
-  logo      String?
-  config    Json?    @default("{}")
-  status    String   @default("active") // active, suspended, trial
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                 Int      @id @default(autoincrement())
+  uuid               String   @unique @default(uuid())
+  name               String
+  slug               String   @unique // subdomain: slug.apextime.in
+  domain             String?  @unique // custom domain
+  logo               String?
+  config             Json?    @default("{}")
+  status             String   @default("active") // active, suspended, trial
+  subscriptionExpiry DateTime? @map("subscription_expiry")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
   users              User[]
   departments        Department[]

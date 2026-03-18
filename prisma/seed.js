@@ -23,6 +23,11 @@ async function main() {
             name: 'ApexTime Demo Business',
             slug: 'demo',
             status: 'active',
+            subscriptionExpiry: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year
+            config: {
+                timezone: 'Asia/Kolkata',
+                currency: 'INR'
+            }
         },
     });
     console.log(`  ✅ Tenant: ${tenant.name} (${tenant.slug})`);

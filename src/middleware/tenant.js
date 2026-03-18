@@ -64,6 +64,15 @@ async function tenantMiddleware(req, res, next) {
             });
         }
 
+        // 4. Check Subscription Expiry
+        if (tenant.subscriptionExpiry && new Date() > new Date(tenant.subscriptionExpiry)) {
+            return res.status(403).json({
+                error: 'Subscription expired',
+                message: 'Your organization subscription has expired. Please contact the administrator for renewal.',
+                isExpired: true
+            });
+        }
+
         req.tenant = tenant;
         req.tenantId = tenant.id;
         next();
