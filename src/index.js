@@ -34,8 +34,6 @@ app.set('trust proxy', true);
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(compression());
 app.use(morgan('short'));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // CORS
 app.use(cors({
@@ -50,6 +48,15 @@ app.use(cors({
   credentials: true,
 }));
 
+// ESSL ADMS/iClock routes MUST be registered BEFORE express.json/urlencoded
+// so that the router-level express.text() parser can read the raw body from the device.
+// The ESSL device sends raw tab-delimited text; global JSON parser would consume and drop it.
+app.use('/iclock', iclockRoutes);
+
+// Global JSON / URL-encoded body parsers (for all other API routes)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
 // Static files for uploads
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use('/api/uploads', express.static(path.join(__dirname, '../uploads')));
@@ -58,9 +65,6 @@ app.use('/api/uploads', express.static(path.join(__dirname, '../uploads')));
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
-
-// ESSL ADMS/iClock routes (no auth, device-level auth via serial number)
-app.use('/iclock', iclockRoutes);
 
 // Auth routes (no tenant middleware needed for login)
 app.use('/api/auth', tenantMiddleware, authRoutes);
