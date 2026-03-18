@@ -46,6 +46,9 @@ function AppRoutes() {
         <Route path="announcements" element={<Announcements />} />
         <Route path="devices" element={<Devices />} />
         <Route path="reports" element={<Reports />} />
+        <Route path="reports/daily" element={<Reports />} />
+        <Route path="reports/weekly" element={<Reports />} />
+        <Route path="reports/monthly" element={<Reports />} />
         <Route path="compoff" element={<CompOff />} />
         <Route path="tenants" element={<Tenants />} />
       </Route>

@@ -35,6 +35,9 @@ export default function Layout() {
                 { to: '/approvals', icon: <CheckCircle2 />, label: 'Approvals' },
                 { to: '/leave-requests', icon: <CalendarOff />, label: 'Leave Requests' },
                 { to: '/reports', icon: <FileText />, label: 'Reports' },
+                { to: '/reports/daily', icon: <FileText size={14} />, label: 'Daily Report', isSub: true },
+                { to: '/reports/weekly', icon: <FileText size={14} />, label: 'Weekly Report', isSub: true },
+                { to: '/reports/monthly', icon: <FileText size={14} />, label: 'Monthly Report', isSub: true },
             ]
         },
         {
@@ -81,6 +84,7 @@ export default function Layout() {
                                     to={item.to}
                                     end={item.to === '/'}
                                     className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                                    style={item.isSub ? { paddingLeft: '32px', fontSize: '13px', opacity: 0.8 } : {}}
                                 >
                                     {item.icon}
                                     <span>{item.label}</span>
