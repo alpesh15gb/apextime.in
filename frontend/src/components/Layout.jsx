@@ -2,8 +2,9 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, Users, Building2, Clock, CheckCircle2,
-    CalendarOff, Megaphone, HardDrive, LogOut, Settings, FileText, Briefcase
+    CalendarOff, Megaphone, HardDrive, LogOut, Settings, FileText, Briefcase, Calendar
 } from 'lucide-react';
+import dayjs from 'dayjs';
 
 export default function Layout() {
     const { user, logout } = useAuth();
@@ -54,6 +55,9 @@ export default function Layout() {
         }
     }
 
+    const subscriptionExpiry = user?.tenant?.subscriptionExpiry;
+    const daysLeft = subscriptionExpiry ? dayjs(subscriptionExpiry).diff(dayjs(), 'day') : null;
+
     return (
         <div className="app-layout">
             <aside className="sidebar">
@@ -86,8 +90,27 @@ export default function Layout() {
                     ))}
                 </nav>
 
-                <div style={{ padding: '12px', borderTop: '1px solid var(--border)' }}>
-                    <div className="nav-item" onClick={handleLogout} style={{ color: 'var(--danger)' }}>
+                <div className="sidebar-footer" style={{ padding: '12px', borderTop: '1px solid var(--border)' }}>
+                    {daysLeft !== null && user?.role !== 'super_admin' && (
+                        <div style={{ 
+                            fontSize: '11px', 
+                            background: daysLeft < 7 ? '#fee2e2' : '#f0f9ff', 
+                            padding: '10px', 
+                            borderRadius: '8px', 
+                            marginBottom: '12px',
+                            color: daysLeft < 7 ? '#991b1b' : '#0369a1',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
+                        }}>
+                            <Calendar size={14} />
+                            <div>
+                                <div style={{ fontWeight: 'bold' }}>Subscription Plan</div>
+                                <div>{daysLeft <= 0 ? 'Expired' : `${daysLeft} days remaining`}</div>
+                            </div>
+                        </div>
+                    )}
+                    <div className="nav-item" onClick={handleLogout} style={{ color: 'var(--danger)', cursor: 'pointer' }}>
                         <LogOut />
                         <span>Logout</span>
                     </div>

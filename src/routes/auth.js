@@ -83,6 +83,7 @@ router.post('/login', async (req, res, next) => {
                     id: user.tenant.id,
                     name: user.tenant.name,
                     slug: user.tenant.slug,
+                    subscriptionExpiry: user.tenant.subscriptionExpiry,
                 },
                 employee: user.employee ? {
                     id: user.employee.id,
@@ -139,6 +140,7 @@ router.get('/me', async (req, res, next) => {
                     name: user.tenant.name,
                     slug: user.tenant.slug,
                     logo: user.tenant.logo,
+                    subscriptionExpiry: user.tenant.subscriptionExpiry,
                 },
                 employee: user.employee ? {
                     id: user.employee.id,
