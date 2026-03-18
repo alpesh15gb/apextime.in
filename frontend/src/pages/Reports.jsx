@@ -1,5 +1,6 @@
 import React, { useState, useEffect, Fragment } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import dayjs from 'dayjs';
 import { Download, Printer, Calendar, Clock, MapPin } from 'lucide-react';
@@ -109,91 +110,97 @@ const DailyReport = ({ data, meta }) => {
     );
 };
 
-const MonthlyReport = ({ data, meta }) => {
-    return (
-        <div className="report-container printable" style={{ background: 'white', color: 'black', padding: '10px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, fontSize: 12 }}>
-                <div>Report from : {dayjs(meta.startDate).format('DD-MM-YYYY')} To : {dayjs(meta.endDate).format('DD-MM-YYYY')}</div>
-                <div style={{ fontWeight: 'bold', fontSize: 16 }}>Monthly Performance Report</div>
-                <div>Print Date : {dayjs().format('DD/MM/YYYY')}</div>
-            </div>
+const ApexReportMonthly = ({ data, meta }) => {
+    const { user } = useAuth();
+    // Helper to sum durations (HH:mm)
+    const sumDurations = (durations) => {
+        let totalMins = 0;
+        durations.forEach(d => {
+            if (!d || d === '00:00' || d === '-') return;
+            const [h, m] = d.split(':').map(Number);
+            totalMins += (h * 60) + m;
+        });
+        const hours = Math.floor(totalMins / 60);
+        const mins = totalMins % 60;
+        return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+    };
 
-            {data.map(emp => {
+    return (
+        <div className="report-container printable apex-report" style={{ background: 'white', color: 'black', padding: '20px', fontFamily: 'monospace', fontSize: '12px' }}>
+            {data.map((emp, empIdx) => {
                 const dayKeys = Object.keys(emp.days).sort();
+                const totals = {
+                    gross: sumDurations(dayKeys.map(k => emp.days[k]?.workHrs)),
+                    extra: sumDurations(dayKeys.map(k => emp.days[k]?.ot)),
+                    less: sumDurations(dayKeys.map(k => emp.days[k]?.early)),
+                    net: '00:00' // Will calc net manually if needed
+                };
+
                 return (
-                    <div key={emp.id} style={{ marginBottom: 30, border: '1px solid #000', pageBreakInside: 'avoid' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 3fr 1fr', background: '#f5f5f5', borderBottom: '1px solid #000', fontSize: 11, fontWeight: 'bold' }}>
-                            <div style={{ padding: 4, borderRight: '1px solid #000' }}>Dept:- {emp.department}</div>
-                            <div style={{ padding: 4, borderRight: '1px solid #000' }}>Desig : {emp.designation}</div>
-                            <div style={{ padding: 4 }}>Attendance Month Of:- {dayjs(meta.startDate).format('MMM YYYY')}</div>
+                    <div key={emp.id} style={{ marginBottom: 40, pageBreakAfter: 'always' }}>
+                        {/* Header */}
+                        <div style={{ textAlign: 'center', position: 'relative', marginBottom: 20 }}>
+                            <div style={{ position: 'absolute', right: 0, top: 0 }}>Page {empIdx + 1} of {data.length}</div>
+                            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 'bold', textTransform: 'uppercase' }}>{user?.tenant?.name || 'APEXTIME.IN'}</h2>
+                            <div style={{ fontSize: 14, fontWeight: 'bold' }}>Work Hours Summary From {dayjs(meta.startDate).format('DD/MM/YYYY')} To {dayjs(meta.endDate).format('DD/MM/YYYY')}</div>
+                            
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 15, fontSize: 11, borderBottom: '1px solid #000', paddingBottom: 5 }}>
+                                <div style={{ textAlign: 'left' }}>
+                                    <div>Run by: System Admin</div>
+                                    <div>Date: {dayjs().format('DD/MM/YYYY')}</div>
+                                </div>
+                                <div style={{ textAlign: 'right' }}>
+                                    <div>Date: {dayjs().format('DD/MM/YYYY')}</div>
+                                    <div>Time: {dayjs().format('HH:mm')}</div>
+                                </div>
+                            </div>
                         </div>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
+
+                        {/* Employee Title */}
+                        <div style={{ fontWeight: 'bold', fontSize: 13, marginBottom: 5 }}>{emp.code} - {emp.name}</div>
+
+                        <table style={{ width: '100%', borderCollapse: 'collapse', borderTop: '1px solid #000' }}>
                             <thead>
-                                <tr style={{ borderBottom: '1px solid #000', background: '#eee' }}>
-                                    <th style={{ borderRight: '1px solid #000', padding: 4, width: 80 }}>EmpCode</th>
-                                    <th style={{ borderRight: '1px solid #000', padding: 4, width: 120 }}>Name</th>
-                                    <th style={{ borderRight: '1px solid #000', padding: 4 }}>Present</th>
-                                    <th style={{ borderRight: '1px solid #000', padding: 4 }}>HL</th>
-                                    <th style={{ borderRight: '1px solid #000', padding: 4 }}>WO</th>
-                                    <th style={{ borderRight: '1px solid #000', padding: 4 }}>Absent</th>
-                                    <th style={{ borderRight: '1px solid #000', padding: 4 }}>Leave</th>
-                                    <th style={{ borderRight: '1px solid #000', padding: 4 }}>PaidDays</th>
-                                    <th style={{ borderRight: '1px solid #000', padding: 4 }}>Early Going</th>
-                                    <th style={{ borderRight: '1px solid #000', padding: 4 }}>LateHrs.</th>
-                                    <th style={{ borderRight: '1px solid #000', padding: 4 }}>WorkHrs.</th>
-                                    <th style={{ padding: 4 }}>OvTim</th>
-                                </tr>
-                                <tr>
-                                    <td style={{ borderRight: '1px solid #000', padding: 4, textAlign: 'center' }}>{emp.code}</td>
-                                    <td style={{ borderRight: '1px solid #000', padding: 4 }}>{emp.name}</td>
-                                    <td style={{ borderRight: '1px solid #000', padding: 4, textAlign: 'center' }}>{emp.stats.present}</td>
-                                    <td style={{ borderRight: '1px solid #000', padding: 4, textAlign: 'center' }}>0</td>
-                                    <td style={{ borderRight: '1px solid #000', padding: 4, textAlign: 'center' }}>{emp.stats.wo}</td>
-                                    <td style={{ borderRight: '1px solid #000', padding: 4, textAlign: 'center' }}>{emp.stats.absent}</td>
-                                    <td style={{ borderRight: '1px solid #000', padding: 4, textAlign: 'center' }}>{emp.stats.leave}</td>
-                                    <td style={{ borderRight: '1px solid #000', padding: 4, textAlign: 'center' }}>{emp.stats.present + emp.stats.wo}</td>
-                                    <td style={{ borderRight: '1px solid #000', padding: 4, textAlign: 'center' }}>-</td>
-                                    <td style={{ borderRight: '1px solid #000', padding: 4, textAlign: 'center' }}>{emp.stats.totalLateHrs}</td>
-                                    <td style={{ borderRight: '1px solid #000', padding: 4, textAlign: 'center' }}>{emp.stats.totalWorkHrs}</td>
-                                    <td style={{ padding: 4, textAlign: 'center' }}>{emp.stats.totalOtHrs}</td>
+                                <tr style={{ borderBottom: '1px solid #000' }}>
+                                    <th style={{ textAlign: 'left', padding: '4px 2px' }}>Date</th>
+                                    <th style={{ textAlign: 'center', padding: '4px 2px' }}>First IN</th>
+                                    <th style={{ textAlign: 'center', padding: '4px 2px' }}>Last OUT</th>
+                                    <th style={{ textAlign: 'center', padding: '4px 2px' }}>Gross Hours</th>
+                                    <th style={{ textAlign: 'center', padding: '4px 2px' }}>Extra Hours</th>
+                                    <th style={{ textAlign: 'center', padding: '4px 2px' }}>Net-Work Hours</th>
+                                    <th style={{ textAlign: 'center', padding: '4px 2px' }}>Total Overtime</th>
+                                    <th style={{ textAlign: 'center', padding: '4px 2px' }}>Less Hours</th>
                                 </tr>
                             </thead>
+                            <tbody>
+                                {dayKeys.map(k => {
+                                    const day = emp.days[k];
+                                    const isHoliday = day?.status === 'WO' || day?.status === 'OFF';
+                                    return (
+                                        <tr key={k} style={{ color: isHoliday ? '#666' : 'black' }}>
+                                            <td style={{ padding: '2px' }}>{dayjs(k).format('DD/MM/YYYY')}</td>
+                                            <td style={{ textAlign: 'center' }}>{day?.in || ''}</td>
+                                            <td style={{ textAlign: 'center' }}>{day?.out || ''}</td>
+                                            <td style={{ textAlign: 'center' }}>{day?.workHrs !== '00:00' ? day?.workHrs : ''}</td>
+                                            <td style={{ textAlign: 'center' }}>{day?.ot !== '00:00' ? day?.ot : ''}</td>
+                                            <td style={{ textAlign: 'center' }}>{day?.workHrs !== '00:00' ? day?.workHrs : ''}</td>
+                                            <td style={{ textAlign: 'center' }}>{day?.ot !== '00:00' ? day?.ot : ''}</td>
+                                            <td style={{ textAlign: 'center' }}>{day?.early !== '00:00' ? day?.early : ''}</td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                            <tfoot>
+                                <tr style={{ borderTop: '2px solid #000', fontWeight: 'bold' }}>
+                                    <td colSpan={3} style={{ textAlign: 'right', padding: '8px' }}>Total</td>
+                                    <td style={{ textAlign: 'center' }}>{totals.gross}</td>
+                                    <td style={{ textAlign: 'center' }}>{totals.extra}</td>
+                                    <td style={{ textAlign: 'center' }}>{totals.gross}</td>
+                                    <td style={{ textAlign: 'center' }}>{totals.extra}</td>
+                                    <td style={{ textAlign: 'center' }}>{totals.less}</td>
+                                </tr>
+                            </tfoot>
                         </table>
-                        
-                        <div style={{ overflowX: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 8, textAlign: 'center' }}>
-                                <tbody>
-                                    <tr style={{ background: '#eee', borderTop: '1px solid #000' }}>
-                                        <td style={{ fontWeight: 'bold', borderRight: '1px solid #000', width: 60 }}>Date</td>
-                                        {dayKeys.map(k => <td key={k} style={{ borderRight: '1px solid #000', fontWeight: 'bold' }}>{dayjs(k).date()}</td>)}
-                                    </tr>
-                                    <tr style={{ height: 20 }}>
-                                        <td style={{ fontWeight: 'bold', borderRight: '1px solid #000' }}>Arrived</td>
-                                        {dayKeys.map(k => <td key={k} style={{ borderRight: '1px solid #000' }}>{emp.days[k]?.in || ''}</td>)}
-                                    </tr>
-                                    <tr style={{ height: 20 }}>
-                                        <td style={{ fontWeight: 'bold', borderRight: '1px solid #000' }}>Departure</td>
-                                        {dayKeys.map(k => <td key={k} style={{ borderRight: '1px solid #000' }}>{emp.days[k]?.out || ''}</td>)}
-                                    </tr>
-                                    <tr style={{ height: 20 }}>
-                                        <td style={{ fontWeight: 'bold', borderRight: '1px solid #000' }}>Working</td>
-                                        {dayKeys.map(k => <td key={k} style={{ borderRight: '1px solid #000' }}>{emp.days[k]?.workHrs || ''}</td>)}
-                                    </tr>
-                                    <tr style={{ height: 20 }}>
-                                        <td style={{ fontWeight: 'bold', borderRight: '1px solid #000' }}>O.Time</td>
-                                        {dayKeys.map(k => <td key={k} style={{ borderRight: '1px solid #000' }}>{emp.days[k]?.ot !== '00:00' ? emp.days[k]?.ot : ''}</td>)}
-                                    </tr>
-                                    <tr style={{ height: 20 }}>
-                                        <td style={{ fontWeight: 'bold', borderRight: '1px solid #000' }}>Status</td>
-                                        {dayKeys.map(k => <td key={k} style={{ borderRight: '1px solid #000', fontWeight: 'bold', color: emp.days[k]?.status === 'A' ? 'red' : 'inherit' }}>{emp.days[k]?.status}</td>)}
-                                    </tr>
-                                    <tr style={{ height: 20 }}>
-                                        <td style={{ fontWeight: 'bold', borderRight: '1px solid #000' }}>Shift</td>
-                                        {dayKeys.map(k => <td key={k} style={{ borderRight: '1px solid #000' }}>{emp.days[k]?.shift}</td>)}
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
                     </div>
                 );
             })}
@@ -210,6 +217,7 @@ export default function Reports() {
         if (location.pathname.includes('/daily')) return 'daily';
         if (location.pathname.includes('/weekly')) return 'weekly';
         if (location.pathname.includes('/monthly')) return 'monthly';
+        if (location.pathname.includes('/apex-monthly')) return 'apex_monthly';
         return 'monthly';
     };
 
@@ -256,7 +264,7 @@ export default function Reports() {
         let endpoint = '/reports/grid';
         let params = {};
 
-        if (reportType === 'monthly') {
+        if (reportType === 'monthly' || reportType === 'apex_monthly') {
             endpoint = '/reports/monthly';
             params = { month, year };
         } else if (reportType === 'daily') {
@@ -391,10 +399,11 @@ export default function Reports() {
 
                         {activeTab === 'performance' ? (
                             <>
-                                <select value={reportType} onChange={e => setReportType(e.target.value)} className="form-input" style={{ width: 120 }}>
+                                <select value={reportType} onChange={e => setReportType(e.target.value)} className="form-input" style={{ width: 150 }}>
                                     <option value="daily">Daily</option>
                                     <option value="weekly">Weekly</option>
                                     <option value="monthly">Monthly</option>
+                                    <option value="apex_monthly">Apex Monthly</option>
                                 </select>
 
                                 {reportType === 'monthly' ? (
@@ -447,6 +456,8 @@ export default function Reports() {
                 <>
                     {reportType === 'daily' ? (
                         <DailyReport data={gridData.data} meta={gridData.meta} />
+                    ) : reportType === 'apex_monthly' ? (
+                        <ApexReportMonthly data={gridData.data} meta={gridData.meta} />
                     ) : reportType === 'monthly' ? (
                         <MonthlyReport data={gridData.data} meta={gridData.meta} />
                     ) : (
