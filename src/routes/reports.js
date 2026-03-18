@@ -34,6 +34,8 @@ const getEmployeeShiftForDate = (empId, dateObj, shiftAssignments) => {
             return {
                 shiftName: assign.shift.name,
                 dayRecord: dayRecord || null,
+                isFlexible: assign.shift.isFlexible,
+                minHours: assign.shift.minHours,
             };
         }
     }
@@ -137,7 +139,20 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                         workMs = dayjs(record.outAt).diff(dayjs(record.inAt));
                     }
 
-                    if (dayRec && !dayRec.isOff) {
+                    if (empShift.isFlexible) {
+                        // Flexible Shift Logic (Bakery)
+                        const minWorkMs = (empShift.minHours || 0) * 3600000;
+                        lateMs = 0; // No late in flexible shift
+                        if (record.inAt && record.outAt && minWorkMs > 0) {
+                            if (workMs < minWorkMs) {
+                                early = formatDuration(minWorkMs - workMs);
+                            } else if (workMs > minWorkMs) {
+                                otMs = workMs - minWorkMs;
+                                ot = formatDuration(otMs);
+                            }
+                        }
+                    } else if (dayRec && !dayRec.isOff) {
+                        // Fixed Shift Logic
                         const shiftStartMins = timeToMinutes(dayRec.startTime);
                         const shiftEndMins = timeToMinutes(dayRec.endTime);
                         const graceMins = dayRec.graceMins || 0;

@@ -18,7 +18,7 @@ export default function WorkShifts() {
     const [shifts, setShifts] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [editItem, setEditItem] = useState(null);
-    const [form, setForm] = useState({ name: '', records: defaultRecords() });
+    const [form, setForm] = useState({ name: '', records: defaultRecords(), isFlexible: false, minHours: 0 });
 
     // Assignment state
     const [showAssignModal, setShowAssignModal] = useState(false);
@@ -37,7 +37,7 @@ export default function WorkShifts() {
             else await api.post('/work-shifts', form);
             setShowModal(false);
             setEditItem(null);
-            setForm({ name: '', records: defaultRecords() });
+            setForm({ name: '', records: defaultRecords(), isFlexible: false, minHours: 0 });
             loadData();
         } catch (err) { alert(err.response?.data?.message || 'Failed'); }
     };
@@ -56,7 +56,7 @@ export default function WorkShifts() {
             const found = existing.find(r => r.day === day);
             return found || { day, startTime: '09:00', endTime: '18:00', isOvernight: false, isOff: false, graceMins: 0 };
         });
-        setForm({ name: shift.name, records });
+        setForm({ name: shift.name, records, isFlexible: !!shift.isFlexible, minHours: shift.minHours || 0 });
         setShowModal(true);
     };
 
@@ -129,7 +129,7 @@ export default function WorkShifts() {
         <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ fontSize: '22px', fontWeight: 700 }}>Work Shifts</h2>
-                <button className="btn btn-primary" onClick={() => { setEditItem(null); setForm({ name: '', records: defaultRecords() }); setShowModal(true); }}>
+                <button className="btn btn-primary" onClick={() => { setEditItem(null); setForm({ name: '', records: defaultRecords(), isFlexible: false, minHours: 0 }); setShowModal(true); }}>
                     <Plus size={16} /> Add Shift
                 </button>
             </div>
@@ -157,7 +157,11 @@ export default function WorkShifts() {
                                     <td><strong>{s.name}</strong></td>
                                     <td>
                                         <span style={{ fontSize: 12 }}>
-                                            {workDays} work days, {offDays} off | {timeSummary}
+                                            {s.isFlexible ? (
+                                                <strong>Flexible ({s.minHours} hrs min)</strong>
+                                            ) : (
+                                                <>{workDays} work days, {offDays} off | {timeSummary}</>
+                                            )}
                                             {firstWork?.graceMins > 0 && ` (Grace: ${firstWork.graceMins}min)`}
                                         </span>
                                     </td>
@@ -197,9 +201,23 @@ export default function WorkShifts() {
                         </div>
                         <form onSubmit={handleSubmit}>
                             <div className="modal-body">
-                                <div className="form-group" style={{ marginBottom: 16 }}>
-                                    <label className="form-label">Shift Name *</label>
-                                    <input className="form-input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required placeholder="e.g. General, Morning, Night" />
+                                <div style={{ display: 'flex', gap: '20px', marginBottom: 16 }}>
+                                    <div className="form-group" style={{ flex: 2 }}>
+                                        <label className="form-label">Shift Name *</label>
+                                        <input className="form-input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required placeholder="e.g. General, Morning, Night" />
+                                    </div>
+                                    <div className="form-group" style={{ flex: 1, display: 'flex', alignItems: 'flex-end', paddingBottom: '10px' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: 500 }}>
+                                            <input type="checkbox" checked={form.isFlexible} onChange={e => setForm({ ...form, isFlexible: e.target.checked })} />
+                                            Flexible Shift
+                                        </label>
+                                    </div>
+                                    {form.isFlexible && (
+                                        <div className="form-group" style={{ flex: 1 }}>
+                                            <label className="form-label">Min Hours</label>
+                                            <input type="number" step="0.5" className="form-input" value={form.minHours} onChange={e => setForm({ ...form, minHours: e.target.value })} placeholder="10" />
+                                        </div>
+                                    )}
                                 </div>
 
                                 <label className="form-label" style={{ marginBottom: 8 }}>Day-wise Schedule</label>

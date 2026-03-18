@@ -19,9 +19,15 @@ router.get('/', async (req, res, next) => {
 // POST /api/work-shifts
 router.post('/', requireRole('admin', 'super_admin'), async (req, res, next) => {
     try {
-        const { name, records } = req.body;
+        const { name, records, isFlexible, minHours } = req.body;
         const shift = await prisma.workShift.create({
-            data: { tenantId: req.tenantId, name, records: records || [] },
+            data: { 
+                tenantId: req.tenantId, 
+                name, 
+                records: records || [],
+                isFlexible: !!isFlexible,
+                minHours: parseFloat(minHours) || 0
+            },
         });
         res.status(201).json(shift);
     } catch (error) { next(error); }
@@ -30,10 +36,16 @@ router.post('/', requireRole('admin', 'super_admin'), async (req, res, next) => 
 // PUT /api/work-shifts/:uuid
 router.put('/:uuid', requireRole('admin', 'super_admin'), async (req, res, next) => {
     try {
-        const { name, records, status } = req.body;
+        const { name, records, status, isFlexible, minHours } = req.body;
         const shift = await prisma.workShift.update({
             where: { uuid: req.params.uuid },
-            data: { name, records, status },
+            data: { 
+                name, 
+                records, 
+                status,
+                isFlexible: isFlexible !== undefined ? !!isFlexible : undefined,
+                minHours: minHours !== undefined ? parseFloat(minHours) : undefined
+            },
         });
         res.json(shift);
     } catch (error) { next(error); }

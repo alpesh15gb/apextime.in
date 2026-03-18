@@ -224,10 +224,12 @@ model WorkShift {
   uuid      String   @unique @default(uuid())
   tenantId  Int      @map("tenant_id")
   name      String
-  records   Json     @default("[]") // [{day, startTime, endTime, isOvernight, isOff}]
-  status    String   @default("active")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  records    Json     @default("[]") // [{day, startTime, endTime, isOvernight, isOff}]
+  isFlexible Boolean  @default(false) @map("is_flexible")
+  minHours   Float    @default(0) @map("min_hours")
+  status     String   @default("active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   tenant             Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   employeeWorkShifts EmployeeWorkShift[]
