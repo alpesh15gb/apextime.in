@@ -119,10 +119,11 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
             let inTime = '', outTime = '', late = '00:00', early = '00:00', ot = '00:00';
             let workMs = 0, lateMs = 0, otMs = 0;
 
+            let dayRec = null;
             const empShift = getEmployeeShiftForDate(emp.id, currentDay, shiftAssignments);
             if (empShift) {
                 shiftName = empShift.shiftName;
-                const dayRec = empShift.dayRecord;
+                dayRec = empShift.dayRecord;
                 if (dayRec && dayRec.isOff) {
                     status = 'WO';
                     shiftName = 'OFF';
