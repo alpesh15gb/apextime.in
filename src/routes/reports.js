@@ -183,7 +183,11 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
             rowData.days[dayKey] = {
                 date: dayKey,
                 dayLabel: currentDay.date(),
-                in: inTime, out: outTime, shift: shiftName, status, late, early, ot, workHrs: formatDuration(workMs)
+                in: inTime, out: outTime, 
+                shift: shiftName,
+                shiftStart: dayRec?.startTime || '',
+                shiftEnd: dayRec?.endTime || '',
+                status, late, early, ot, workHrs: formatDuration(workMs)
             };
         }
 
