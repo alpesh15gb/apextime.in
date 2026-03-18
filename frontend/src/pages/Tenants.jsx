@@ -29,15 +29,19 @@ export default function Tenants() {
     }
 
     const handleRenew = async (tenant) => {
-        const days = prompt(`Extend subscription for ${tenant.name} by how many days?`, '30');
+        const mode = window.confirm(`Subscription for ${tenant.name}\n\nClick OK to ADD days to the current balance.\nClick CANCEL to START FRESH from today.`) 
+            ? 'add' : 'reset';
+            
+        const days = prompt(`How many days to ${mode === 'add' ? 'ADD to balance' : 'SET from today'}?`, '30');
         if (!days || isNaN(days)) return;
 
         try {
-            await api.put(`/tenants/${tenant.uuid}`, { subscriptionDays: days });
+            const payload = mode === 'add' ? { addDays: days } : { subscriptionDays: days };
+            await api.put(`/tenants/${tenant.uuid}`, payload);
             loadData();
-            alert('Subscription extended successfully');
+            alert('Subscription updated successfully');
         } catch (err) {
-            alert('Failed to extend subscription');
+            alert('Failed to update subscription');
         }
     };
 

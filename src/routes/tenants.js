@@ -79,13 +79,21 @@ router.post('/', requireRole('super_admin'), async (req, res, next) => {
 // PUT /api/tenants/:uuid
 router.put('/:uuid', requireRole('super_admin'), async (req, res, next) => {
     try {
-        const { name, domain, status, config, logo, subscriptionDays } = req.body;
+        const { name, domain, status, config, logo, subscriptionDays, addDays } = req.body;
         
         let updateData = { name, domain, status, config, logo };
         
         if (subscriptionDays !== undefined) {
-             // If days provided, add to current date (renewal/extension)
+             // Reset: X days from today
              updateData.subscriptionExpiry = new Date(Date.now() + parseInt(subscriptionDays) * 24 * 60 * 60 * 1000);
+        } else if (addDays !== undefined) {
+            // Extend: Add X days to current balance
+            const currentTenant = await prisma.tenant.findUnique({ where: { uuid: req.params.uuid } });
+            const currentExpiry = currentTenant.subscriptionExpiry && new Date(currentTenant.subscriptionExpiry) > new Date() 
+                ? new Date(currentTenant.subscriptionExpiry) 
+                : new Date();
+            
+            updateData.subscriptionExpiry = new Date(currentExpiry.getTime() + parseInt(addDays) * 24 * 60 * 60 * 1000);
         }
 
         const tenant = await prisma.tenant.update({
