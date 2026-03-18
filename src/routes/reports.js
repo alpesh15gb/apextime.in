@@ -183,9 +183,20 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                 const record = timesheets.find(t => t.employeeId === emp.id && dayjs(t.date).isSame(currentDay, 'day'));
                 if (record) {
                     if (record.inAt) { inTime = dayjs(record.inAt).format('HH:mm'); status = 'P'; }
-                    if (record.outAt) { outTime = dayjs(record.outAt).format('HH:mm'); workMs = dayjs(record.outAt).diff(dayjs(record.inAt)); }
-                    if (status === 'P' && dayOfWeek === 0 && workMs > 0) { 
-                        // Overridden for flexible environment. Only calculate OT if shift assigned.
+                    if (record.outAt) { 
+                        outTime = dayjs(record.outAt).format('HH:mm'); 
+                        workMs = dayjs(record.outAt).diff(dayjs(record.inAt)); 
+                    }
+                    
+                    // OPTION C: Default to 10-hour flexible logic for unassigned employees
+                    const minWorkMs = 10 * 3600000;
+                    if (workMs > 0) {
+                        if (workMs < minWorkMs) {
+                            early = formatDuration(minWorkMs - workMs);
+                        } else if (workMs > minWorkMs) {
+                            otMs = workMs - minWorkMs;
+                            ot = formatDuration(otMs);
+                        }
                     }
                 }
             }
