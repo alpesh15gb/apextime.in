@@ -173,7 +173,7 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                         }
                     }
 
-                    if (dayRec && dayRec.isOff && record.inAt) {
+                    if (dayRec && dayRec.isOff && record.inAt && !empShift.isFlexible) {
                         status = 'P';
                         if (workMs > 0) { otMs = workMs; ot = formatDuration(otMs); }
                     }
