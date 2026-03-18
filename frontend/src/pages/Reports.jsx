@@ -130,7 +130,7 @@ const ApexReportMonthly = ({ data, meta }) => {
     };
 
     return (
-        <div className="report-container printable apex-report" style={{ background: 'white', color: 'black', padding: '20px', fontFamily: 'monospace', fontSize: '12px' }}>
+        <div className="report-container printable apex-report-monthly" style={{ background: 'white', color: 'black', padding: '0px', fontFamily: 'monospace', fontSize: '11px' }}>
             {data.map((emp, empIdx) => {
                 const dayKeys = Object.keys(emp.days).sort();
                 const totals = {
@@ -157,14 +157,14 @@ const ApexReportMonthly = ({ data, meta }) => {
                 totals.net = sumDurations(netWorkDurations);
 
                 return (
-                    <div key={emp.id} style={{ marginBottom: 40, pageBreakAfter: 'always' }}>
+                    <div key={emp.id} className="apex-page" style={{ padding: '30px', boxSizing: 'border-box', height: '100%', minHeight: '1120px', display: 'flex', flexDirection: 'column' }}>
                         {/* Header */}
-                        <div style={{ textAlign: 'center', position: 'relative', marginBottom: 20 }}>
+                        <div style={{ textAlign: 'center', position: 'relative', marginBottom: 15 }}>
                             <div style={{ position: 'absolute', right: 0, top: 0 }}>Page {empIdx + 1} of {data.length}</div>
-                            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 'bold', textTransform: 'uppercase' }}>{user?.tenant?.name || 'APEXTIME.IN'}</h2>
-                            <div style={{ fontSize: 14, fontWeight: 'bold' }}>Work Hours Summary From {dayjs(meta.startDate).format('DD/MM/YYYY')} To {dayjs(meta.endDate).format('DD/MM/YYYY')}</div>
+                            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 'bold', textTransform: 'uppercase' }}>{user?.tenant?.name || 'APEXTIME BUSINESS'}</h2>
+                            <div style={{ fontSize: 13, fontWeight: 'bold' }}>Work Hours Summary From {dayjs(meta.startDate).format('DD/MM/YYYY')} To {dayjs(meta.endDate).format('DD/MM/YYYY')}</div>
                             
-                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 15, fontSize: 11, borderBottom: '1px solid #000', paddingBottom: 5 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, fontSize: 10, borderBottom: '1px solid #000', paddingBottom: 2 }}>
                                 <div style={{ textAlign: 'left' }}>
                                     <div>Run by: System Admin</div>
                                     <div>Date: {dayjs().format('DD/MM/YYYY')}</div>
@@ -198,16 +198,16 @@ const ApexReportMonthly = ({ data, meta }) => {
                                     const day = emp.days[k];
                                     const isHoliday = day?.status === 'WO' || day?.status === 'OFF';
                                     return (
-                                        <tr key={k} style={{ color: isHoliday ? '#666' : 'black' }}>
-                                            <td style={{ padding: '2px' }}>{dayjs(k).format('DD/MM/YYYY')}</td>
-                                            <td style={{ textAlign: 'center', fontSize: '10px' }}>{day?.shift || '-'}</td>
-                                            <td style={{ textAlign: 'center' }}>{day?.in || ''}</td>
-                                            <td style={{ textAlign: 'center' }}>{day?.out || ''}</td>
-                                            <td style={{ textAlign: 'center' }}>{day?.workHrs !== '00:00' ? day?.workHrs : ''}</td>
-                                            <td style={{ textAlign: 'center' }}>{day?.ot !== '00:00' ? day?.ot : ''}</td>
-                                            <td style={{ textAlign: 'center' }}>{subtractDurations(day?.workHrs, day?.ot) !== '00:00' ? subtractDurations(day?.workHrs, day?.ot) : ''}</td>
-                                            <td style={{ textAlign: 'center' }}>{day?.ot !== '00:00' ? day?.ot : ''}</td>
-                                            <td style={{ textAlign: 'center' }}>{day?.early !== '00:00' ? day?.early : ''}</td>
+                                        <tr key={k} style={{ color: isHoliday ? '#666' : 'black', borderBottom: '1px solid #eee' }}>
+                                            <td style={{ padding: '4px 2px' }}>{dayjs(k).format('DD/MM/YYYY')}</td>
+                                            <td style={{ textAlign: 'center', fontSize: '9px', padding: '4px 2px' }}>{day?.shift || '-'}</td>
+                                            <td style={{ textAlign: 'center', padding: '4px 2px' }}>{day?.in || ''}</td>
+                                            <td style={{ textAlign: 'center', padding: '4px 2px' }}>{day?.out || ''}</td>
+                                            <td style={{ textAlign: 'center', padding: '4px 2px' }}>{day?.workHrs !== '00:00' ? day?.workHrs : ''}</td>
+                                            <td style={{ textAlign: 'center', padding: '4px 2px' }}>{day?.ot !== '00:00' ? day?.ot : ''}</td>
+                                            <td style={{ textAlign: 'center', padding: '4px 2px' }}>{subtractDurations(day?.workHrs, day?.ot) !== '00:00' ? subtractDurations(day?.workHrs, day?.ot) : ''}</td>
+                                            <td style={{ textAlign: 'center', padding: '4px 2px' }}>{day?.ot !== '00:00' ? day?.ot : ''}</td>
+                                            <td style={{ textAlign: 'center', padding: '4px 2px' }}>{day?.early !== '00:00' ? day?.early : ''}</td>
                                         </tr>
                                     );
                                 })}
@@ -602,7 +602,7 @@ export default function Reports() {
 
             <style>{`
 @media print {
-    @page { size: landscape; margin: 3mm; }
+    @page { size: portrait; margin: 10mm; }
     html, body, #root, .app-layout, .main-content, .content-area {
         height: auto !important;
         overflow: visible !important;
@@ -612,6 +612,7 @@ export default function Reports() {
     .printable, .printable * { color: #000 !important; }
     .no-print, .sidebar, .top-bar { display: none !important; }
     .report-employee-row { break-inside: avoid; border: 1px solid #000 !important; }
+    .apex-page { page-break-after: always; height: 100%; box-sizing: border-box; }
 }
 `}</style>
         </div>
