@@ -428,7 +428,7 @@ export default function Reports() {
                                     <option value="apex_monthly">Apex Monthly</option>
                                 </select>
 
-                                {reportType === 'monthly' ? (
+                                {(reportType === 'monthly' || reportType === 'apex_monthly') ? (
                                     <>
                                         <select value={month} onChange={e => setMonth(e.target.value)} className="form-input" style={{ width: 140 }}>
                                             {Array.from({ length: 12 }, (_, i) => (
