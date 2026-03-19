@@ -114,6 +114,147 @@ const DailyReport = ({ data, meta }) => {
     );
 };
 
+const MonthlyReport = ({ data, meta }) => {
+    const { user } = useAuth();
+    const dayKeys = [];
+    const daysInMonth = dayjs(meta.startDate).daysInMonth();
+    const start = dayjs(meta.startDate).startOf('month');
+    for (let i = 0; i < daysInMonth; i++) {
+        dayKeys.push(start.add(i, 'day').format('YYYY-MM-DD'));
+    }
+
+    return (
+        <div className="report-container printable" style={{ background: 'white', color: 'black', padding: '10px' }}>
+            <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 'bold', textTransform: 'uppercase' }}>{user?.tenant?.name || 'APEXTIME BUSINESS'}</h2>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, fontSize: 12 }}>
+                <div>Report from : {dayjs(meta.startDate).format('DD-MM-YYYY')} To : {dayjs(meta.endDate).format('DD-MM-YYYY')}</div>
+                <div style={{ fontWeight: 'bold', fontSize: 16 }}>Monthly Performance Report</div>
+                <div>Print Date : {dayjs().format('DD/MM/YYYY')}</div>
+            </div>
+
+            <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 9 }}>
+                    <thead>
+                        <tr style={{ background: '#eee' }}>
+                            <th style={{ border: '1px solid #000', padding: 4, textAlign: 'left', width: 150 }}>Employee</th>
+                            {dayKeys.map(k => (
+                                <th key={k} style={{ border: '1px solid #000', padding: 2, minWidth: 25 }}>
+                                    {dayjs(k).date()}
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {data.map(emp => (
+                            <tr key={emp.id}>
+                                <td style={{ border: '1px solid #000', padding: '2px 4px', fontWeight: 'bold' }}>
+                                    {emp.code} - {emp.name}
+                                </td>
+                                {dayKeys.map(k => {
+                                    const day = emp.days[k];
+                                    let content = '-';
+                                    let color = 'black';
+                                    if (day) {
+                                        content = day.status;
+                                        if (content === 'A') color = 'red';
+                                        if (content === 'P') color = 'green';
+                                        if (content === 'WO') color = 'blue';
+                                    }
+                                    return (
+                                        <td key={k} style={{ border: '1px solid #000', padding: 2, textAlign: 'center', color, fontWeight: 'bold' }}>
+                                            {content}
+                                        </td>
+                                    );
+                                })}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
+const WeeklyReport = ({ data, meta }) => {
+    const { user } = useAuth();
+    const dayKeys = Object.keys(data[0]?.days || {}).sort();
+
+    return (
+        <div className="report-container printable" style={{ background: 'white', color: 'black', padding: '10px' }}>
+            <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 'bold', textTransform: 'uppercase' }}>{user?.tenant?.name || 'APEXTIME BUSINESS'}</h2>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, fontSize: 12 }}>
+                <div>Range: {meta.startDate} to {meta.endDate}</div>
+                <div style={{ fontWeight: 'bold', fontSize: 16 }}>Weekly Performance Report</div>
+                <div>Print Date : {dayjs().format('DD/MM/YYYY')}</div>
+            </div>
+
+            {data.map((emp) => (
+                <div key={emp.id} className="report-employee-row" style={{ marginBottom: 15, border: '2px solid #000', pageBreakInside: 'avoid' }}>
+                    <div style={{ display: 'flex' }}>
+                        <div style={{ width: 140, borderRight: '2px solid #000', padding: '4px 6px', fontSize: 9, display: 'flex', flexDirection: 'column', justifyContent: 'center', lineHeight: 1.2 }}>
+                            <div style={{ fontWeight: 'bold', fontSize: 10, wordBreak: 'break-word', lineHeight: 1.1, marginBottom: 4 }}>{emp.name}</div>
+                            <div style={{ marginBottom: 1 }}>Code: {emp.code}</div>
+                            <div style={{ marginBottom: 1 }}>Dept: {emp.department}</div>
+                            <div style={{ marginTop: 4, borderTop: '1px solid #000', paddingTop: 4, fontSize: 8.5 }}>
+                                <div>P: {emp.stats.present}, A: {emp.stats.absent}, WO: {emp.stats.wo}</div>
+                                <div>Work: {emp.stats.totalWorkHrs}</div>
+                                {emp.stats.totalOtHrs !== '00:00' && <div>OT: {emp.stats.totalOtHrs}</div>}
+                            </div>
+                        </div>
+
+                        <div style={{ flex: 1, overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 9, textAlign: 'center', tableLayout: 'fixed' }}>
+                                <thead>
+                                    <tr style={{ background: '#eee', borderBottom: '1px solid #000', height: 18 }}>
+                                        <th style={{ borderRight: '1px solid #ccc', width: 45, fontSize: 8 }}>Metric</th>
+                                        {dayKeys.map(k => {
+                                            const d = dayjs(k);
+                                            return (
+                                                <th key={k} style={{ borderRight: '1px solid #ccc', fontSize: 7, color: d.day() === 0 ? 'red' : '#000' }}>
+                                                    <div>{d.format('ddd')}</div>
+                                                    <div>{d.date()}</div>
+                                                </th>
+                                            );
+                                        })}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {['IN', 'OUT', 'Shift', 'OT', 'Status'].map((metric) => (
+                                        <tr key={metric} style={{ height: 18 }}>
+                                            <td style={{ fontWeight: 'bold', borderRight: '1px solid #ccc', background: '#f0f0f0' }}>{metric}</td>
+                                            {dayKeys.map(k => {
+                                                const day = emp.days[k];
+                                                let content = '';
+                                                let style = { borderRight: '1px solid #ccc', fontSize: 8 };
+                                                if (metric === 'IN') content = day?.in || '';
+                                                if (metric === 'OUT') content = day?.out || '';
+                                                if (metric === 'Shift') content = day?.shift || '';
+                                                if (metric === 'OT') content = day?.ot === '00:00' ? '' : day?.ot;
+                                                if (metric === 'Status') {
+                                                    content = day?.status;
+                                                    if (content === 'A') style.color = 'red';
+                                                    if (content === 'P') style.color = 'green';
+                                                    if (content === 'WO') style.color = 'blue';
+                                                    style.fontWeight = 'bold';
+                                                }
+                                                return <td key={k} style={style}>{content}</td>;
+                                            })}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
 const ApexReportMonthly = ({ data, meta }) => {
     const { user } = useAuth();
     // Helper to sum durations (HH:mm)
@@ -476,86 +617,10 @@ export default function Reports() {
 
             {!loading && activeTab === 'performance' && gridData && (
                 <>
-                    {reportType === 'daily' ? (
-                        <DailyReport data={gridData.data} meta={gridData.meta} />
-                    ) : reportType === 'apex_monthly' ? (
-                        <ApexReportMonthly data={gridData.data} meta={gridData.meta} />
-                    ) : reportType === 'monthly' ? (
-                        <MonthlyReport data={gridData.data} meta={gridData.meta} />
-                    ) : (
-                        <div className="report-container printable" style={{ background: 'white', color: 'black', padding: '20px' }}>
-                            <div style={{ textAlign: 'center', marginBottom: 10 }} className="print-header">
-                                <h3>{reportType.toUpperCase()} Performance Report</h3>
-                                <p style={{ marginBottom: 0 }}>Range: {gridData.meta.startDate} to {gridData.meta.endDate}</p>
-                            </div>
-
-                            {gridData.data.map((emp) => {
-                                const dayKeys = Object.keys(emp.days).sort();
-                                return (
-                                    <div key={emp.id} className="report-employee-row" style={{ marginBottom: 15, border: '2px solid #000', pageBreakInside: 'avoid' }}>
-                                        <div style={{ display: 'flex' }}>
-                                            <div style={{ width: 140, borderRight: '2px solid #000', padding: '4px 6px', fontSize: 9, display: 'flex', flexDirection: 'column', justifyContent: 'center', lineHeight: 1.2 }}>
-                                                <div style={{ fontWeight: 'bold', fontSize: 10, wordBreak: 'break-word', lineHeight: 1.1, marginBottom: 4 }}>{emp.name}</div>
-                                                <div style={{ marginBottom: 1 }}>Code: {emp.code}</div>
-                                                <div style={{ marginBottom: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Dept: {emp.department}</div>
-                                                <div style={{ marginTop: 4, borderTop: '1px solid #000', paddingTop: 4, fontSize: 8.5 }}>
-                                                    <div>P: {emp.stats.present}, A: {emp.stats.absent}, WO: {emp.stats.wo}</div>
-                                                    <div>Work: {emp.stats.totalWorkHrs}</div>
-                                                    {emp.stats.totalOtHrs !== '00:00' && <div>OT: {emp.stats.totalOtHrs}</div>}
-                                                </div>
-                                            </div>
-
-                                            <div style={{ flex: 1, overflowX: 'auto' }}>
-                                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 9, textAlign: 'center', tableLayout: 'fixed' }}>
-                                                    <thead>
-                                                        <tr style={{ background: '#eee', borderBottom: '1px solid #000', height: 18 }}>
-                                                            <th style={{ borderRight: '1px solid #ccc', width: 45, fontSize: 8 }}>Metric</th>
-                                                            {dayKeys.map(k => {
-                                                                const d = dayjs(k);
-                                                                const isSunday = d.day() === 0;
-                                                                return (
-                                                                    <th key={k} style={{ borderRight: '1px solid #ccc', fontSize: 7, color: isSunday ? 'red' : '#000' }}>
-                                                                        <div>{d.format('ddd')}</div>
-                                                                        <div>{d.date()}</div>
-                                                                    </th>
-                                                                );
-                                                            })}
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {['IN', 'OUT', 'Shift', 'Late', 'OT', 'Status'].map((metric) => (
-                                                            <tr key={metric} style={{ height: 18 }}>
-                                                                <td style={{ fontWeight: 'bold', borderRight: '1px solid #ccc', background: '#f0f0f0' }}>{metric}</td>
-                                                                {dayKeys.map(k => {
-                                                                    const day = emp.days[k];
-                                                                    let content = '';
-                                                                    let style = { borderRight: '1px solid #ccc', fontSize: 8, background: day?.shift === 'OFF' ? '#ddd' : '#fff' };
-
-                                                                    if (metric === 'IN') content = day?.in || '';
-                                                                    if (metric === 'OUT') content = day?.out || '';
-                                                                    if (metric === 'Shift') content = day?.shift || '';
-                                                                    if (metric === 'Late') content = day?.late === '00:00' ? '' : day?.late;
-                                                                    if (metric === 'OT') content = day?.ot === '00:00' ? '' : day?.ot;
-                                                                    if (metric === 'Status') {
-                                                                        content = day?.status;
-                                                                        if (content === 'A') style.color = 'red';
-                                                                        if (content === 'P') style.color = 'green';
-                                                                        if (content === 'WO') style.color = 'blue';
-                                                                        style.fontWeight = 'bold';
-                                                                    }
-                                                                    return <td key={k} style={style}>{content}</td>;
-                                                                })}
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
+                    {reportType === 'daily' && <DailyReport data={gridData.data} meta={gridData.meta} />}
+                    {reportType === 'weekly' && <WeeklyReport data={gridData.data} meta={gridData.meta} />}
+                    {reportType === 'monthly' && <MonthlyReport data={gridData.data} meta={gridData.meta} />}
+                    {reportType === 'apex_monthly' && <ApexReportMonthly data={gridData.data} meta={gridData.meta} />}
                 </>
             )}
 
