@@ -18,6 +18,65 @@ const LocationAddress = ({ lat, lng }) => {
     return <div style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', marginTop: 4 }}><MapPin size={10} style={{ marginRight: 4 }} /> {addr}</div>;
 };
 
+const PhotoWithLocation = ({ photoUrl, lat, lng, time, label }) => {
+    const [addr, setAddr] = useState('Locating...');
+    const [fullAddr, setFullAddr] = useState('');
+
+    useEffect(() => {
+        if (!lat || !lng) return;
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+            .then(res => res.json())
+            .then(d => {
+                const parts = (d.display_name || '').split(',');
+                setAddr(parts.slice(0, 2).join(', '));
+                setFullAddr(d.display_name);
+            })
+            .catch(() => {
+                setAddr('Unknown Location');
+                setFullAddr('Address not available');
+            });
+    }, [lat, lng]);
+
+    if (!photoUrl) return <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>No Photo</span>;
+
+    const staticMapUrl = `https://static-maps.yandex.ru/1.x/?l=map&ll=${lng},${lat}&z=14&size=100,100&pt=${lng},${lat},pm2rdm`;
+    const finalPhotoUrl = photoUrl.startsWith('/') ? `/api${photoUrl}` : photoUrl;
+
+    return (
+        <div style={{ position: 'relative', width: '220px', height: '220px', overflow: 'hidden', borderRadius: '8px', border: '1px solid var(--border)', background: '#000' }}>
+            <a href={finalPhotoUrl} target="_blank" rel="noopener noreferrer">
+                <img src={finalPhotoUrl} alt={label} style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.9 }} />
+            </a>
+            
+            <div style={{ 
+                position: 'absolute', 
+                bottom: 0, 
+                left: 0, 
+                right: 0, 
+                background: 'rgba(0,0,0,0.7)', 
+                color: 'white', 
+                padding: '6px', 
+                display: 'flex', 
+                gap: '8px',
+                fontSize: '8px',
+                fontFamily: 'monospace',
+                pointerEvents: 'none'
+            }}>
+                <div style={{ width: '50px', height: '50px', flexShrink: 0, border: '1px solid rgba(255,255,255,0.3)' }}>
+                    <img src={staticMapUrl} alt="Map" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </div>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '1px', lineHeight: 1.1, overflow: 'hidden' }}>
+                    <div style={{ fontWeight: 'bold', fontSize: '9px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{addr}</div>
+                    <div style={{ opacity: 0.9, height: '10px', overflow: 'hidden' }}>{fullAddr.split(',').slice(1, 4).join(', ')}</div>
+                    <div style={{ marginTop: '2px' }}>Lat {Number(lat).toFixed(6)}°</div>
+                    <div>Long {Number(lng).toFixed(6)}°</div>
+                    <div style={{ marginTop: '1px', fontWeight: 'bold' }}>{dayjs(time).format('DD/MM/YY hh:mm A')} GMT+5:30</div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 export default function Approvals() {
     const [pending, setPending] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -77,34 +136,18 @@ export default function Approvals() {
                     {/* Evidence Section */}
                     {t.source === 'mobile' && (
                         <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-light)' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                            <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
                                 {/* IN Evidence */}
                                 <div>
-                                    <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px' }}>PUNCH IN</div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                        {t.photoUrl ? (
-                                            <a href={t.photoUrl.startsWith('/') ? `/api${t.photoUrl}` : t.photoUrl} target="_blank" rel="noopener noreferrer">
-                                                <img src={t.photoUrl.startsWith('/') ? `/api${t.photoUrl}` : t.photoUrl} alt="In Selfie" className="approval-photo" style={{ width: 80, height: 80, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border)' }} />
-                                            </a>
-                                        ) : <span style={{ fontSize: '11px', color: 'var(--danger)' }}>No Photo</span>}
-
-                                        {t.latitude && <LocationAddress lat={t.latitude} lng={t.longitude} />}
-                                    </div>
+                                    <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>PUNCH IN SELFIE</div>
+                                    <PhotoWithLocation photoUrl={t.photoUrl} lat={t.latitude} lng={t.longitude} time={t.inAt || t.createdAt} label="In Selfie" />
                                 </div>
 
                                 {/* OUT Evidence */}
                                 {t.outAt && (
                                     <div>
-                                        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '4px' }}>PUNCH OUT</div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                            {t.outPhotoUrl ? (
-                                                <a href={t.outPhotoUrl.startsWith('/') ? `/api${t.outPhotoUrl}` : t.outPhotoUrl} target="_blank" rel="noopener noreferrer">
-                                                    <img src={t.outPhotoUrl.startsWith('/') ? `/api${t.outPhotoUrl}` : t.outPhotoUrl} alt="Out Selfie" className="approval-photo" style={{ width: 80, height: 80, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border)' }} />
-                                                </a>
-                                            ) : <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>-</span>}
-
-                                            {t.outLatitude && <LocationAddress lat={t.outLatitude} lng={t.outLongitude} />}
-                                        </div>
+                                        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px' }}>PUNCH OUT SELFIE</div>
+                                        <PhotoWithLocation photoUrl={t.outPhotoUrl} lat={t.outLatitude} lng={t.outLongitude} time={t.outAt} label="Out Selfie" />
                                     </div>
                                 )}
                             </div>
