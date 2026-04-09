@@ -246,6 +246,7 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                 status, late, early, ot, 
                 workHrs: formatDuration(workMs),
                 lunch: formatDuration(lunchMs),
+                shiftLunchDuration: empShift?.lunchDuration || 1.0,
                 lunchOut: outTimeLunch,
                 lunchIn: inTimeLunch
             };

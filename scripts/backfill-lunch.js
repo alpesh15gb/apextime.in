@@ -38,35 +38,35 @@ async function backfill() {
             }
         });
 
-        if (logs.length > 0) {
-            const punches = [];
-            let lastPunchTime = null;
-
-            for (const log of logs) {
-                const punchTime = log.punchTime;
-                
-                // Filter duplicates (2-min gap)
-                if (!lastPunchTime || dayjs(punchTime).diff(dayjs(lastPunchTime)) >= 120000) {
-                    punches.push({
-                        time: punchTime,
-                        device_sn: 'HISTORY',
-                        type: 'auto'
-                    });
-                    lastPunchTime = punchTime;
+            if (logs.length > 0) {
+                const uniquePunches = [];
+                const seenTimes = new Set();
+                for (const log of logs) {
+                    const timeStr = dayjs(log.punchTime).format('YYYY-MM-DD HH:mm');
+                    if (!seenTimes.has(timeStr)) {
+                        uniquePunches.push({
+                            time: log.punchTime,
+                            device_sn: 'HISTORY',
+                            type: 'auto'
+                        });
+                        seenTimes.add(timeStr);
+                    }
                 }
-            }
 
-            const updateData = {
-                punches,
-                inAt: punches[0].time,
-                outAt: punches[punches.length - 1].time
-            };
+                const updateData = {
+                    punches: uniquePunches,
+                    inAt: uniquePunches[0].time,
+                    outAt: uniquePunches[uniquePunches.length - 1].time
+                };
 
-            // Smart lunch identification (Only if 4+ scans)
-            if (punches.length >= 4) {
-                updateData.lunchOutAt = punches[1].time;
-                updateData.lunchInAt = punches[2].time;
-            }
+                // Smart lunch identification (Only if 4+ UNIQUE scans)
+                if (uniquePunches.length >= 4) {
+                    updateData.lunchOutAt = uniquePunches[1].time;
+                    updateData.lunchInAt = uniquePunches[2].time;
+                } else {
+                    updateData.lunchOutAt = null;
+                    updateData.lunchInAt = null;
+                }
 
             await prisma.timesheet.update({
                 where: { id: ts.id },

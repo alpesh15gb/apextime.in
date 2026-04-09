@@ -366,7 +366,24 @@ const ApexReportMonthly = ({ data, meta }) => {
                                             <td style={{ textAlign: 'center', padding: '2px' }}>{day?.lunchOut || ''}</td>
                                             <td style={{ textAlign: 'center', padding: '2px' }}>{day?.lunchIn || ''}</td>
                                             <td style={{ textAlign: 'center', padding: '2px', fontWeight: 'bold' }}>{displayGross !== '00:00' ? displayGross : ''}</td>
-                                            <td style={{ textAlign: 'center', padding: '2px' }}>{day?.lunch !== '00:00' ? day?.lunch : ''}</td>
+                                            {(() => {
+                                                if (!day?.lunch || day.lunch === '00:00') return <td style={{ textAlign: 'center', padding: '2px' }}></td>;
+                                                const [lh, lm] = day.lunch.split(':').map(Number);
+                                                const lunchMins = lh * 60 + lm;
+                                                const maxMins = (day.shiftLunchDuration || 1.0) * 60;
+                                                const isExcess = lunchMins > maxMins + 1; // 1-min grace
+                                                return (
+                                                    <td style={{ 
+                                                        textAlign: 'center', 
+                                                        padding: '2px', 
+                                                        color: isExcess ? 'red' : 'inherit',
+                                                        fontWeight: isExcess ? 'bold' : 'normal'
+                                                    }}>
+                                                        {day.lunch}
+                                                        {isExcess && <span style={{ fontSize: '7px', display: 'block' }}>EXCESS</span>}
+                                                    </td>
+                                                );
+                                            })()}
                                             <td style={{ textAlign: 'center', padding: '2px', fontWeight: 'bold' }}>{day?.workHrs !== '00:00' ? day?.workHrs : ''}</td>
                                             <td style={{ textAlign: 'center', padding: '2px' }}>{day?.ot !== '00:00' ? day?.ot : ''}</td>
                                             <td style={{ textAlign: 'center', padding: '2px' }}>{day?.early !== '00:00' ? day?.early : ''}</td>
