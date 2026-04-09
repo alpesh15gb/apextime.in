@@ -121,7 +121,7 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
             let status = 'A';
             let shiftName = 'GEN';
             let inTime = '', outTime = '', late = '00:00', early = '00:00', ot = '00:00';
-            let workMs = 0, lateMs = 0, otMs = 0;
+            let workMs = 0, lateMs = 0, otMs = 0, lunchMs = 0;
 
             let dayRec = null;
             const empShift = getEmployeeShiftForDate(emp.id, currentDay, shiftAssignments);
@@ -134,7 +134,6 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                 }
 
                 const record = timesheets.find(t => t.employeeId === emp.id && dayjs(t.date).isSame(currentDay, 'day'));
-                let lunchMs = 0;
                 if (record) {
                     if (record.inAt) { inTime = dayjs(record.inAt).format('HH:mm'); status = 'P'; }
                     if (record.outAt) { 
@@ -203,7 +202,6 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                     
                     // OPTION C: Default to 9-hour flexible logic for unassigned employees
                     const minWorkMs = 9 * 3600000;
-                    let lunchMs = 0;
                     if (workMs > 0) {
                         // Apply default lunch logic for unassigned
                         if (workMs > 4 * 3600000) {
