@@ -62,11 +62,9 @@ async function backfill() {
                 outAt: punches[punches.length - 1].time
             };
 
-            // Smart lunch identification
-            if (punches.length >= 2) {
+            // Smart lunch identification (Only if 4+ scans)
+            if (punches.length >= 4) {
                 updateData.lunchOutAt = punches[1].time;
-            }
-            if (punches.length >= 3) {
                 updateData.lunchInAt = punches[2].time;
             }
 

@@ -231,14 +231,10 @@ router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
                                 
                                 const updateData = { punches: updatedPunches };
                                 
-                                // Smart Logic:
-                                // Punch 2 (index 1) -> Lunch Out
-                                // Punch 3 (index 2) -> Lunch In
-                                // Everything else updates the final outAt
-                                if (updatedPunches.length === 1) { // This was the 2nd punch (index 1 is new)
-                                    updateData.lunchOutAt = punchTime;
-                                } else if (updatedPunches.length === 2) { // 3rd punch
-                                    updateData.lunchInAt = punchTime;
+                                // Smart Logic: Only identify lunch if there are 4+ total scans
+                                if (updatedPunches.length === 3) { // This is the 4th scan of the day
+                                    updateData.lunchOutAt = updatedPunches[1].time;
+                                    updateData.lunchInAt = updatedPunches[2].time;
                                 }
                                 
                                 // Always update final outAt with the latest punch
