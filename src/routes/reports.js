@@ -145,7 +145,15 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                         const lThreshold = empShift?.lunchThreshold ?? 4.0;
                         
                         // Use actual punches if both exist AND there are at least 4 punches total
-                        const punchesCount = record.punches ? (Array.isArray(record.punches) ? record.punches.length : 0) : 0;
+                        let punchesCount = 0;
+                        if (record.punches) {
+                            try {
+                                const pRaw = record.punches;
+                                const pArr = typeof pRaw === 'string' ? JSON.parse(pRaw) : pRaw;
+                                punchesCount = Array.isArray(pArr) ? pArr.length : 0;
+                            } catch (e) { punchesCount = 0; }
+                        }
+                        
                         if (record.lunchOutAt && record.lunchInAt && punchesCount >= 4) {
                             lunchMs = dayjs(record.lunchInAt).diff(dayjs(record.lunchOutAt));
                             inTimeLunch = dayjs(record.lunchInAt).format('HH:mm');
