@@ -37,6 +37,7 @@
     "uuid": "^13.0.0"
   },
   "devDependencies": {
+    "@prisma/config": "^7.7.0",
     "prisma": "^7.4.0"
   },
   "prisma": {

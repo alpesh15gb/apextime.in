@@ -18,7 +18,7 @@ export default function WorkShifts() {
     const [shifts, setShifts] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [editItem, setEditItem] = useState(null);
-    const [form, setForm] = useState({ name: '', records: defaultRecords(), isFlexible: false, minHours: 0 });
+    const [form, setForm] = useState({ name: '', records: defaultRecords(), isFlexible: false, minHours: 0, lunchDuration: 1, lunchThreshold: 4 });
 
     // Assignment state
     const [showAssignModal, setShowAssignModal] = useState(false);
@@ -37,7 +37,7 @@ export default function WorkShifts() {
             else await api.post('/work-shifts', form);
             setShowModal(false);
             setEditItem(null);
-            setForm({ name: '', records: defaultRecords(), isFlexible: false, minHours: 0 });
+            setForm({ name: '', records: defaultRecords(), isFlexible: false, minHours: 0, lunchDuration: 1, lunchThreshold: 4 });
             loadData();
         } catch (err) { alert(err.response?.data?.message || 'Failed'); }
     };
@@ -56,7 +56,14 @@ export default function WorkShifts() {
             const found = existing.find(r => r.day === day);
             return found || { day, startTime: '09:00', endTime: '18:00', isOvernight: false, isOff: false, graceMins: 0 };
         });
-        setForm({ name: shift.name, records, isFlexible: !!shift.isFlexible, minHours: shift.minHours || 0 });
+        setForm({ 
+            name: shift.name, 
+            records, 
+            isFlexible: !!shift.isFlexible, 
+            minHours: shift.minHours || 0,
+            lunchDuration: shift.lunchDuration || 0,
+            lunchThreshold: shift.lunchThreshold || 0
+        });
         setShowModal(true);
     };
 
@@ -129,7 +136,7 @@ export default function WorkShifts() {
         <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ fontSize: '22px', fontWeight: 700 }}>Work Shifts</h2>
-                <button className="btn btn-primary" onClick={() => { setEditItem(null); setForm({ name: '', records: defaultRecords(), isFlexible: false, minHours: 0 }); setShowModal(true); }}>
+                <button className="btn btn-primary" onClick={() => { setEditItem(null); setForm({ name: '', records: defaultRecords(), isFlexible: false, minHours: 0, lunchDuration: 1, lunchThreshold: 4 }); setShowModal(true); }}>
                     <Plus size={16} /> Add Shift
                 </button>
             </div>
@@ -218,6 +225,19 @@ export default function WorkShifts() {
                                             <input type="number" step="0.5" className="form-input" value={form.minHours} onChange={e => setForm({ ...form, minHours: e.target.value })} placeholder="10" />
                                         </div>
                                     )}
+                                </div>
+
+                                <div style={{ display: 'flex', gap: '20px', marginBottom: 16 }}>
+                                    <div className="form-group" style={{ flex: 1 }}>
+                                        <label className="form-label">Lunch Duration (Hrs)</label>
+                                        <input type="number" step="0.1" className="form-input" value={form.lunchDuration} onChange={e => setForm({ ...form, lunchDuration: e.target.value })} placeholder="1.0" />
+                                    </div>
+                                    <div className="form-group" style={{ flex: 1 }}>
+                                        <label className="form-label">Lunch Threshold (Hrs)</label>
+                                        <input type="number" step="0.5" className="form-input" value={form.lunchThreshold} onChange={e => setForm({ ...form, lunchThreshold: e.target.value })} placeholder="4.0" />
+                                        <small style={{ fontSize: '10px', color: 'gray' }}>Subtract lunch only if worked > this</small>
+                                    </div>
+                                    <div style={{ flex: 1 }}></div>
                                 </div>
 
                                 <label className="form-label" style={{ marginBottom: 8 }}>Day-wise Schedule</label>

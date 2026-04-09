@@ -19,14 +19,16 @@ router.get('/', async (req, res, next) => {
 // POST /api/work-shifts
 router.post('/', requireRole('admin', 'super_admin'), async (req, res, next) => {
     try {
-        const { name, records, isFlexible, minHours } = req.body;
+        const { name, records, isFlexible, minHours, lunchDuration, lunchThreshold } = req.body;
         const shift = await prisma.workShift.create({
             data: { 
                 tenantId: req.tenantId, 
                 name, 
                 records: records || [],
                 isFlexible: !!isFlexible,
-                minHours: parseFloat(minHours) || 0
+                minHours: parseFloat(minHours) || 0,
+                lunchDuration: parseFloat(lunchDuration) || 0,
+                lunchThreshold: parseFloat(lunchThreshold) || 0
             },
         });
         res.status(201).json(shift);
@@ -36,7 +38,7 @@ router.post('/', requireRole('admin', 'super_admin'), async (req, res, next) => 
 // PUT /api/work-shifts/:uuid
 router.put('/:uuid', requireRole('admin', 'super_admin'), async (req, res, next) => {
     try {
-        const { name, records, status, isFlexible, minHours } = req.body;
+        const { name, records, status, isFlexible, minHours, lunchDuration, lunchThreshold } = req.body;
         const shift = await prisma.workShift.update({
             where: { uuid: req.params.uuid },
             data: { 
@@ -44,7 +46,9 @@ router.put('/:uuid', requireRole('admin', 'super_admin'), async (req, res, next)
                 records, 
                 status,
                 isFlexible: isFlexible !== undefined ? !!isFlexible : undefined,
-                minHours: minHours !== undefined ? parseFloat(minHours) : undefined
+                minHours: minHours !== undefined ? parseFloat(minHours) : undefined,
+                lunchDuration: lunchDuration !== undefined ? parseFloat(lunchDuration) : undefined,
+                lunchThreshold: lunchThreshold !== undefined ? parseFloat(lunchThreshold) : undefined
             },
         });
         res.json(shift);

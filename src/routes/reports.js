@@ -36,6 +36,8 @@ const getEmployeeShiftForDate = (empId, dateObj, shiftAssignments) => {
                 dayRecord: dayRecord || null,
                 isFlexible: assign.shift.isFlexible,
                 minHours: assign.shift.minHours,
+                lunchDuration: assign.shift.lunchDuration,
+                lunchThreshold: assign.shift.lunchThreshold,
             };
         }
     }
@@ -132,11 +134,22 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                 }
 
                 const record = timesheets.find(t => t.employeeId === emp.id && dayjs(t.date).isSame(currentDay, 'day'));
+                let lunchMs = 0;
                 if (record) {
                     if (record.inAt) { inTime = dayjs(record.inAt).format('HH:mm'); status = 'P'; }
                     if (record.outAt) { 
                         outTime = dayjs(record.outAt).format('HH:mm'); 
-                        workMs = dayjs(record.outAt).diff(dayjs(record.inAt));
+                        let grossWorkMs = dayjs(record.outAt).diff(dayjs(record.inAt));
+                        
+                        // Lunch Logic
+                        const lDuration = empShift?.lunchDuration ?? 1.0;
+                        const lThreshold = empShift?.lunchThreshold ?? 4.0;
+                        if (grossWorkMs > lThreshold * 3600000) {
+                            lunchMs = lDuration * 3600000;
+                            workMs = Math.max(0, grossWorkMs - lunchMs);
+                        } else {
+                            workMs = grossWorkMs;
+                        }
                     }
 
                     if (empShift.isFlexible) {
@@ -188,9 +201,16 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                         workMs = dayjs(record.outAt).diff(dayjs(record.inAt)); 
                     }
                     
-                    // OPTION C: Default to 10-hour flexible logic for unassigned employees
-                    const minWorkMs = 10 * 3600000;
+                    // OPTION C: Default to 9-hour flexible logic for unassigned employees
+                    const minWorkMs = 9 * 3600000;
+                    let lunchMs = 0;
                     if (workMs > 0) {
+                        // Apply default lunch logic for unassigned
+                        if (workMs > 4 * 3600000) {
+                            lunchMs = 1 * 3600000;
+                            workMs = Math.max(0, workMs - lunchMs);
+                        }
+
                         if (workMs < minWorkMs) {
                             early = formatDuration(minWorkMs - workMs);
                         } else if (workMs > minWorkMs) {
@@ -216,7 +236,9 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                 shift: shiftName,
                 shiftStart: dayRec?.startTime || '',
                 shiftEnd: dayRec?.endTime || '',
-                status, late, early, ot, workHrs: formatDuration(workMs)
+                status, late, early, ot, 
+                workHrs: formatDuration(workMs),
+                lunch: formatDuration(lunchMs)
             };
         }
 

@@ -227,6 +227,8 @@ model WorkShift {
   records    Json     @default("[]") // [{day, startTime, endTime, isOvernight, isOff}]
   isFlexible Boolean  @default(false) @map("is_flexible")
   minHours   Float    @default(0) @map("min_hours")
+  lunchDuration Float    @default(1.0) @map("lunch_duration")
+  lunchThreshold Float    @default(4.0) @map("lunch_threshold")
   status     String   @default("active")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")

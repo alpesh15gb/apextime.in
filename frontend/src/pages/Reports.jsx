@@ -71,6 +71,7 @@ const DailyReport = ({ data, meta }) => {
                         <th style={{ border: '1px solid #000', padding: 4 }}>Out Time</th>
                         <th style={{ border: '1px solid #000', padding: 4 }}>Early Dept.</th>
                         <th style={{ border: '1px solid #000', padding: 4 }}>Work Hrs.</th>
+                        <th style={{ border: '1px solid #000', padding: 4 }}>Lunch</th>
                         <th style={{ border: '1px solid #000', padding: 4 }}>OT</th>
                         <th style={{ border: '1px solid #000', padding: 4 }}>Status</th>
                         <th style={{ border: '1px solid #000', padding: 4 }}>Remark</th>
@@ -96,6 +97,7 @@ const DailyReport = ({ data, meta }) => {
                                         <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day?.out || ''}</td>
                                         <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day?.early || ''}</td>
                                         <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day?.workHrs || ''}</td>
+                                        <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day?.lunch || ''}</td>
                                         <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day?.ot !== '00:00' ? day?.ot : ''}</td>
                                         <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center', fontWeight: 'bold', color: day?.status === 'A' ? 'red' : 'inherit' }}>{day?.status || ''}</td>
                                         <td style={{ border: '1px solid #000', padding: 4 }}></td>
@@ -328,6 +330,7 @@ const ApexReportMonthly = ({ data, meta }) => {
                                     <th style={{ textAlign: 'center', padding: '2px' }}>First IN</th>
                                     <th style={{ textAlign: 'center', padding: '2px' }}>Last OUT</th>
                                     <th style={{ textAlign: 'center', padding: '2px' }}>Gross Hours</th>
+                                    <th style={{ textAlign: 'center', padding: '2px' }}>Lunch</th>
                                     <th style={{ textAlign: 'center', padding: '2px' }}>Extra Hours</th>
                                     <th style={{ textAlign: 'center', padding: '2px' }}>Net-Work Hours</th>
                                     <th style={{ textAlign: 'center', padding: '2px' }}>Total Overtime</th>
@@ -345,6 +348,7 @@ const ApexReportMonthly = ({ data, meta }) => {
                                             <td style={{ textAlign: 'center', padding: '2px' }}>{day?.in || ''}</td>
                                             <td style={{ textAlign: 'center', padding: '2px' }}>{day?.out || ''}</td>
                                             <td style={{ textAlign: 'center', padding: '2px' }}>{day?.workHrs !== '00:00' ? day?.workHrs : ''}</td>
+                                            <td style={{ textAlign: 'center', padding: '2px' }}>{day?.lunch !== '00:00' ? day?.lunch : ''}</td>
                                             <td style={{ textAlign: 'center', padding: '2px' }}>{day?.ot !== '00:00' ? day?.ot : ''}</td>
                                             <td style={{ textAlign: 'center', padding: '2px' }}>{subtractDurations(day?.workHrs, day?.ot) !== '00:00' ? subtractDurations(day?.workHrs, day?.ot) : ''}</td>
                                             <td style={{ textAlign: 'center', padding: '2px' }}>{day?.ot !== '00:00' ? day?.ot : ''}</td>
@@ -507,6 +511,10 @@ export default function Reports() {
             const rowOut = ['', '', '', 'OUT'];
             dayKeys.forEach(k => rowOut.push(emp.days[k]?.out || ''));
             aoa.push(rowOut);
+
+            const rowLunch = ['', '', '', 'LUNCH'];
+            dayKeys.forEach(k => rowLunch.push(emp.days[k]?.lunch || ''));
+            aoa.push(rowLunch);
 
             const rowShift = ['', '', '', 'Shift'];
             dayKeys.forEach(k => rowShift.push(emp.days[k]?.shift || ''));
