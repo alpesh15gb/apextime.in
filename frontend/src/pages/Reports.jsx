@@ -335,18 +335,28 @@ const ApexReportMonthly = ({ data, meta }) => {
                                     <th style={{ textAlign: 'center', padding: '2px' }}>Last OUT</th>
                                     <th style={{ textAlign: 'center', padding: '2px' }}>Lunch-Out</th>
                                     <th style={{ textAlign: 'center', padding: '2px' }}>Lunch-In</th>
-                                    <th style={{ textAlign: 'center', padding: '2px' }}>Gross Hours</th>
+                                    <th style={{ textAlign: 'center', padding: '2px', fontWeight: 'bold' }}>Gross</th>
                                     <th style={{ textAlign: 'center', padding: '2px' }}>Lunch</th>
-                                    <th style={{ textAlign: 'center', padding: '2px' }}>Extra Hours</th>
-                                    <th style={{ textAlign: 'center', padding: '2px' }}>Net-Work Hours</th>
-                                    <th style={{ textAlign: 'center', padding: '2px' }}>Total Overtime</th>
-                                    <th style={{ textAlign: 'center', padding: '2px' }}>Less Hours</th>
+                                    <th style={{ textAlign: 'center', padding: '2px', fontWeight: 'bold' }}>Net Work</th>
+                                    <th style={{ textAlign: 'center', padding: '2px' }}>Overtime</th>
+                                    <th style={{ textAlign: 'center', padding: '2px' }}>Less Hrs</th>
                                 </tr>
                             </thead>
                             <tbody style={{ fontSize: '9.5px' }}>
                                 {dayKeys.map(k => {
                                     const day = emp.days[k];
                                     const isHoliday = day?.status === 'WO' || day?.status === 'OFF';
+                                    
+                                    // Local Gross calculation for display
+                                    let displayGross = '00:00';
+                                    if (day?.in && day?.out) {
+                                        const [ih, im] = day.in.split(':').map(Number);
+                                        const [oh, om] = day.out.split(':').map(Number);
+                                        let diff = (oh * 60 + om) - (ih * 60 + im);
+                                        if (diff < 0) diff += 1440;
+                                        displayGross = `${Math.floor(diff / 60).toString().padStart(2, '0')}:${(diff % 60).toString().padStart(2, '0')}`;
+                                    }
+
                                     return (
                                         <tr key={k} style={{ color: isHoliday ? '#666' : 'black', borderBottom: '1px solid #eee' }}>
                                             <td style={{ padding: '2px' }}>{dayjs(k).format('DD/MM/YYYY')}</td>
@@ -355,10 +365,9 @@ const ApexReportMonthly = ({ data, meta }) => {
                                             <td style={{ textAlign: 'center', padding: '2px' }}>{day?.out || ''}</td>
                                             <td style={{ textAlign: 'center', padding: '2px' }}>{day?.lunchOut || ''}</td>
                                             <td style={{ textAlign: 'center', padding: '2px' }}>{day?.lunchIn || ''}</td>
-                                            <td style={{ textAlign: 'center', padding: '2px' }}>{day?.workHrs !== '00:00' ? day?.workHrs : ''}</td>
+                                            <td style={{ textAlign: 'center', padding: '2px', fontWeight: 'bold' }}>{displayGross !== '00:00' ? displayGross : ''}</td>
                                             <td style={{ textAlign: 'center', padding: '2px' }}>{day?.lunch !== '00:00' ? day?.lunch : ''}</td>
-                                            <td style={{ textAlign: 'center', padding: '2px' }}>{day?.ot !== '00:00' ? day?.ot : ''}</td>
-                                            <td style={{ textAlign: 'center', padding: '2px' }}>{subtractDurations(day?.workHrs, day?.ot) !== '00:00' ? subtractDurations(day?.workHrs, day?.ot) : ''}</td>
+                                            <td style={{ textAlign: 'center', padding: '2px', fontWeight: 'bold' }}>{day?.workHrs !== '00:00' ? day?.workHrs : ''}</td>
                                             <td style={{ textAlign: 'center', padding: '2px' }}>{day?.ot !== '00:00' ? day?.ot : ''}</td>
                                             <td style={{ textAlign: 'center', padding: '2px' }}>{day?.early !== '00:00' ? day?.early : ''}</td>
                                         </tr>
@@ -367,8 +376,9 @@ const ApexReportMonthly = ({ data, meta }) => {
                             </tbody>
                             <tfoot>
                                 <tr style={{ borderTop: '2px solid #000', fontWeight: 'bold', fontSize: '10px' }}>
-                                    <td colSpan={4} style={{ textAlign: 'right', padding: '4px' }}>Total</td>
+                                    <td colSpan={6} style={{ textAlign: 'right', padding: '4px' }}>Total</td>
                                     <td style={{ textAlign: 'center' }}>{totals.gross}</td>
+                                    <td style={{ textAlign: 'center' }}>{sumDurations(dayKeys.map(k => emp.days[k]?.lunch))}</td>
                                     <td style={{ textAlign: 'center' }}>{totals.extra}</td>
                                     <td style={{ textAlign: 'center' }}>{totals.net}</td>
                                     <td style={{ textAlign: 'center' }}>{totals.extra}</td>
