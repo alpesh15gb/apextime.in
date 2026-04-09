@@ -169,15 +169,29 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                                 ot = formatDuration(otMs);
                             }
                         }
-                        if (dayRec && !dayRec.isOff) {
-                            const minWorkMs = (empShift.minHours || 9) * 3600000;
-                            if (workMs < minWorkMs) {
-                                early = formatDuration(minWorkMs - workMs);
-                            } else if (workMs > minWorkMs) {
-                                otMs = workMs - minWorkMs;
-                                ot = formatDuration(otMs);
+                    } else if (dayRec && !dayRec.isOff) {
+                        // Fixed Shift Logic (Now also using duration-based OT as requested)
+                        const minWorkMs = (empShift.minHours || 9) * 3600000;
+                        
+                        // Still calculate Late for fixed shifts
+                        const shiftStartMins = timeToMinutes(dayRec.startTime);
+                        const graceMins = dayRec.graceMins || 0;
+                        if (record.inAt && shiftStartMins !== null) {
+                            const punchInMins = dayjs(record.inAt).hour() * 60 + dayjs(record.inAt).minute();
+                            const allowedStart = shiftStartMins + graceMins;
+                            if (punchInMins > allowedStart) {
+                                lateMs = (punchInMins - shiftStartMins) * 60000;
+                                late = formatDuration(lateMs);
                             }
                         }
+
+                        if (workMs < minWorkMs) {
+                            early = formatDuration(minWorkMs - workMs);
+                        } else if (workMs > minWorkMs) {
+                            otMs = workMs - minWorkMs;
+                            ot = formatDuration(otMs);
+                        }
+                    }
 
                     if (dayRec && dayRec.isOff && record.inAt && !empShift.isFlexible) {
                         status = 'P';
