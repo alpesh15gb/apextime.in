@@ -120,7 +120,7 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
 
             let status = 'A';
             let shiftName = 'GEN';
-            let inTime = '', outTime = '', late = '00:00', early = '00:00', ot = '00:00';
+            let inTime = '', outTime = '', inTimeLunch = '', outTimeLunch = '', late = '00:00', early = '00:00', ot = '00:00';
             let workMs = 0, lateMs = 0, otMs = 0, lunchMs = 0;
 
             let dayRec = null;
@@ -143,12 +143,18 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                         // Lunch Logic
                         const lDuration = empShift?.lunchDuration ?? 1.0;
                         const lThreshold = empShift?.lunchThreshold ?? 4.0;
-                        if (grossWorkMs > lThreshold * 3600000) {
+                        
+                        // Use actual punches if both exist
+                        if (record.lunchOutAt && record.lunchInAt) {
+                            lunchMs = dayjs(record.lunchInAt).diff(dayjs(record.lunchOutAt));
+                            inTimeLunch = dayjs(record.lunchInAt).format('HH:mm');
+                            outTimeLunch = dayjs(record.lunchOutAt).format('HH:mm');
+                        } else if (grossWorkMs > lThreshold * 3600000) {
+                            // Fallback to default duration
                             lunchMs = lDuration * 3600000;
-                            workMs = Math.max(0, grossWorkMs - lunchMs);
-                        } else {
-                            workMs = grossWorkMs;
                         }
+
+                        workMs = Math.max(0, grossWorkMs - lunchMs);
                     }
 
                     if (empShift.isFlexible) {
@@ -236,7 +242,9 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                 shiftEnd: dayRec?.endTime || '',
                 status, late, early, ot, 
                 workHrs: formatDuration(workMs),
-                lunch: formatDuration(lunchMs)
+                lunch: formatDuration(lunchMs),
+                lunchOut: outTimeLunch,
+                lunchIn: inTimeLunch
             };
         }
 

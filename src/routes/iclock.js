@@ -217,44 +217,49 @@ router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
                         });
 
                         if (existingTimesheet) {
-                            // Timesheet exists. Check if this punch is an "Out" punch (later than "In")
-                            const diffMinutes = dayjs(punchTime).diff(dayjs(existingTimesheet.inAt), 'minute');
+                            // Timesheet exists. 
+                            const existingPunches = existingTimesheet.punches || [];
+                            const lastPunchTime = existingPunches.length > 0 
+                                ? dayjs(existingPunches[existingPunches.length - 1].time) 
+                                : dayjs(existingTimesheet.inAt);
 
-                            if (diffMinutes >= 2) {
-                                // Only update outAt if the new punch is later than the currently saved outAt (or if there is no outAt yet)
-                                if (!existingTimesheet.outAt || dayjs(punchTime).isAfter(dayjs(existingTimesheet.outAt))) {
-                                    await prisma.timesheet.update({
-                                        where: { id: existingTimesheet.id },
-                                        data: { outAt: punchTime },
-                                    });
+                            const diffFromLastMs = dayjs(punchTime).diff(lastPunchTime);
+                            
+                            if (diffFromLastMs >= 120000) { // 2 minutes gap to avoid duplicates
+                                const newPunch = { time: punchTime, device_sn: SN, type: 'auto' };
+                                const updatedPunches = [...existingPunches, newPunch];
+                                
+                                const updateData = { punches: updatedPunches };
+                                
+                                // Smart Logic:
+                                // Punch 2 (index 1) -> Lunch Out
+                                // Punch 3 (index 2) -> Lunch In
+                                // Everything else updates the final outAt
+                                if (updatedPunches.length === 1) { // This was the 2nd punch (index 1 is new)
+                                    updateData.lunchOutAt = punchTime;
+                                } else if (updatedPunches.length === 2) { // 3rd punch
+                                    updateData.lunchInAt = punchTime;
                                 }
-                            } else if (diffMinutes < 0) {
-                                // Extremely rare edge case: punchTime is somehow EARLIER than inAt 
-                                // (e.g., ADMS sent logs out of order). We should shift the old inAt to outAt, 
-                                // and make this punch the new inAt.
-                                if (!existingTimesheet.outAt || dayjs(existingTimesheet.inAt).isAfter(dayjs(existingTimesheet.outAt))) {
-                                    await prisma.timesheet.update({
-                                        where: { id: existingTimesheet.id },
-                                        data: {
-                                            inAt: punchTime,
-                                            outAt: existingTimesheet.inAt
-                                        },
-                                    });
-                                } else {
-                                    await prisma.timesheet.update({
-                                        where: { id: existingTimesheet.id },
-                                        data: { inAt: punchTime },
-                                    });
-                                }
+                                
+                                // Always update final outAt with the latest punch
+                                updateData.outAt = punchTime;
+
+                                await prisma.timesheet.update({
+                                    where: { id: existingTimesheet.id },
+                                    data: updateData,
+                                });
                             }
                         } else {
                             // First punch of the day: Clock in
+                            const firstPunch = { time: punchTime, device_sn: SN, type: 'in' };
                             await prisma.timesheet.create({
                                 data: {
                                     tenantId: device.tenantId,
                                     employeeId: employee.id,
                                     date: new Date(dateStr),
                                     inAt: punchTime,
+                                    outAt: punchTime, // Initial out is same as in
+                                    punches: [firstPunch],
                                     source: 'device',
                                     status: 'auto_approved',
                                     meta: { device_sn: SN, verify_mode: verifyMode, in_out_mode: inOutMode },

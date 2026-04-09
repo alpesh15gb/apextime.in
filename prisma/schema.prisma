@@ -263,6 +263,9 @@ model Timesheet {
   date        DateTime  @db.Date
   inAt        DateTime? @map("in_at")
   outAt       DateTime? @map("out_at")
+  lunchOutAt  DateTime? @map("lunch_out_at")
+  lunchInAt   DateTime? @map("lunch_in_at")
+  punches     Json?     @default("[]") // [{time, device_sn, type}]
   source      String    @default("manual") // device, mobile, manual, portal
   status      String    @default("auto_approved") // auto_approved, pending, approved, rejected
   reviewedBy  Int?      @map("reviewed_by")
