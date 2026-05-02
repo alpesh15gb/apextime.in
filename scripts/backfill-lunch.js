@@ -42,8 +42,8 @@ async function backfill() {
             }
         });
 
+            let uniquePunches = [];
             if (logs.length > 0) {
-                const uniquePunches = [];
                 const seenTimes = new Set();
                 for (const log of logs) {
                     const timeStr = dayjs(log.punchTime).format('YYYY-MM-DD HH:mm');
@@ -56,36 +56,33 @@ async function backfill() {
                         seenTimes.add(timeStr);
                     }
                 }
-
-                const updateData = {
-                    punches: uniquePunches,
-                    inAt: uniquePunches[0].time,
-                    outAt: uniquePunches.length > 1 ? uniquePunches[uniquePunches.length - 1].time : null,
-                    lunchOutAt: null,
-                    lunchInAt: null
-                };
-
-                await prisma.timesheet.update({
-                    where: { id: ts.id },
-                    data: updateData
-                });
-                
-                updatedCount++;
-            } else if (ts.inAt && ts.outAt && dayjs(ts.inAt).isSame(dayjs(ts.outAt))) {
-                // FALLBACK: No logs found in DeviceLog table, but Timesheet has matching IN/OUT.
-                // This usually happens if logs were cleared or if it's an older record.
-                // We set outAt to null to indicate a single punch (Active status).
-                await prisma.timesheet.update({
-                    where: { id: ts.id },
-                    data: { 
-                        outAt: null,
-                        lunchOutAt: null,
-                        lunchInAt: null
-                    }
-                });
-                updatedCount++;
+            } else {
+                // No logs found, use existing punches as fallback
+                const pRaw = ts.punches || [];
+                uniquePunches = typeof pRaw === 'string' ? JSON.parse(pRaw) : pRaw;
             }
+
+            const updateData = {
+                punches: uniquePunches,
+                lunchOutAt: null,
+                lunchInAt: null
+            };
+
+            if (uniquePunches.length > 0) {
+                updateData.inAt = uniquePunches[0].time;
+                // ONLY set outAt if there is more than 1 unique punch
+                updateData.outAt = uniquePunches.length > 1 ? uniquePunches[uniquePunches.length - 1].time : null;
+            } else {
+                // No punches at all? Keep existing inAt but clear outAt
+                updateData.outAt = null;
+            }
+
+            await prisma.timesheet.update({
+                where: { id: ts.id },
+                data: updateData
+            });
             
+            updatedCount++;
             if (updatedCount % 50 === 0 && updatedCount > 0) console.log(`Updated ${updatedCount} records...`);
         }
     }
