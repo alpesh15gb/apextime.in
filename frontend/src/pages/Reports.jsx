@@ -69,11 +69,8 @@ const DailyReport = ({ data, meta }) => {
                         <th style={{ border: '1px solid #000', padding: 4 }}>In Time</th>
                         <th style={{ border: '1px solid #000', padding: 4 }}>Late Arrival</th>
                         <th style={{ border: '1px solid #000', padding: 4 }}>Out Time</th>
-                        <th style={{ border: '1px solid #000', padding: 4 }}>Lunch-Out</th>
-                        <th style={{ border: '1px solid #000', padding: 4 }}>Lunch-In</th>
                         <th style={{ border: '1px solid #000', padding: 4 }}>Early Dept.</th>
                         <th style={{ border: '1px solid #000', padding: 4 }}>Work Hrs.</th>
-                        <th style={{ border: '1px solid #000', padding: 4 }}>Lunch</th>
                         <th style={{ border: '1px solid #000', padding: 4 }}>OT</th>
                         <th style={{ border: '1px solid #000', padding: 4 }}>Status</th>
                         <th style={{ border: '1px solid #000', padding: 4 }}>Remark</th>
@@ -97,11 +94,8 @@ const DailyReport = ({ data, meta }) => {
                                         <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day?.in || ''}</td>
                                         <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day?.late || ''}</td>
                                         <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day?.out || ''}</td>
-                                        <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day?.lunchOut || ''}</td>
-                                        <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day?.lunchIn || ''}</td>
                                         <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day?.early || ''}</td>
                                         <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day?.workHrs || ''}</td>
-                                        <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day?.lunch || ''}</td>
                                         <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day?.ot !== '00:00' ? day?.ot : ''}</td>
                                         <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center', fontWeight: 'bold', color: day?.status === 'A' ? 'red' : 'inherit' }}>{day?.status || ''}</td>
                                         <td style={{ border: '1px solid #000', padding: 4 }}></td>
@@ -333,11 +327,8 @@ const ApexReportMonthly = ({ data, meta }) => {
                                     <th style={{ textAlign: 'center', padding: '2px' }}>Shift</th>
                                     <th style={{ textAlign: 'center', padding: '2px' }}>First IN</th>
                                     <th style={{ textAlign: 'center', padding: '2px' }}>Last OUT</th>
-                                    <th style={{ textAlign: 'center', padding: '2px' }}>Lunch-Out</th>
-                                    <th style={{ textAlign: 'center', padding: '2px' }}>Lunch-In</th>
                                     <th style={{ textAlign: 'center', padding: '2px', fontWeight: 'bold' }}>Gross</th>
-                                    <th style={{ textAlign: 'center', padding: '2px' }}>Lunch</th>
-                                    <th style={{ textAlign: 'center', padding: '2px', fontWeight: 'bold' }}>Net Work</th>
+                                    <th style={{ textAlign: 'center', padding: '2px', fontWeight: 'bold' }}>Work Hours</th>
                                     <th style={{ textAlign: 'center', padding: '2px' }}>Overtime</th>
                                     <th style={{ textAlign: 'center', padding: '2px' }}>Less Hrs</th>
                                 </tr>
@@ -363,27 +354,7 @@ const ApexReportMonthly = ({ data, meta }) => {
                                             <td style={{ textAlign: 'center', fontSize: '8.5px', padding: '2px' }}>{day?.shift || '-'}</td>
                                             <td style={{ textAlign: 'center', padding: '2px' }}>{day?.in || ''}</td>
                                             <td style={{ textAlign: 'center', padding: '2px' }}>{day?.out || ''}</td>
-                                            <td style={{ textAlign: 'center', padding: '2px' }}>{day?.lunchOut || ''}</td>
-                                            <td style={{ textAlign: 'center', padding: '2px' }}>{day?.lunchIn || ''}</td>
                                             <td style={{ textAlign: 'center', padding: '2px', fontWeight: 'bold' }}>{displayGross !== '00:00' ? displayGross : ''}</td>
-                                            {(() => {
-                                                if (!day?.lunch || day.lunch === '00:00') return <td style={{ textAlign: 'center', padding: '2px' }}></td>;
-                                                const [lh, lm] = day.lunch.split(':').map(Number);
-                                                const lunchMins = lh * 60 + lm;
-                                                const maxMins = (day.shiftLunchDuration || 1.0) * 60;
-                                                const isExcess = lunchMins > maxMins + 1; // 1-min grace
-                                                return (
-                                                    <td style={{ 
-                                                        textAlign: 'center', 
-                                                        padding: '2px', 
-                                                        color: isExcess ? 'red' : 'inherit',
-                                                        fontWeight: isExcess ? 'bold' : 'normal'
-                                                    }}>
-                                                        {day.lunch}
-                                                        {isExcess && <span style={{ fontSize: '7px', display: 'block' }}>EXCESS</span>}
-                                                    </td>
-                                                );
-                                            })()}
                                             <td style={{ textAlign: 'center', padding: '2px', fontWeight: 'bold' }}>{day?.workHrs !== '00:00' ? day?.workHrs : ''}</td>
                                             <td style={{ textAlign: 'center', padding: '2px' }}>{day?.ot !== '00:00' ? day?.ot : ''}</td>
                                             <td style={{ textAlign: 'center', padding: '2px' }}>{day?.early !== '00:00' ? day?.early : ''}</td>
@@ -393,10 +364,8 @@ const ApexReportMonthly = ({ data, meta }) => {
                             </tbody>
                             <tfoot>
                                 <tr style={{ borderTop: '2px solid #000', fontWeight: 'bold', fontSize: '10px' }}>
-                                    <td colSpan={6} style={{ textAlign: 'right', padding: '4px' }}>Total</td>
+                                    <td colSpan={4} style={{ textAlign: 'right', padding: '4px' }}>Total</td>
                                     <td style={{ textAlign: 'center' }}>{totals.gross}</td>
-                                    <td style={{ textAlign: 'center' }}>{sumDurations(dayKeys.map(k => emp.days[k]?.lunch))}</td>
-                                    <td style={{ textAlign: 'center' }}>{totals.extra}</td>
                                     <td style={{ textAlign: 'center' }}>{totals.net}</td>
                                     <td style={{ textAlign: 'center' }}>{totals.extra}</td>
                                     <td style={{ textAlign: 'center' }}>{totals.less}</td>

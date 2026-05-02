@@ -59,14 +59,9 @@ async function backfill() {
                     outAt: uniquePunches[uniquePunches.length - 1].time
                 };
 
-                // Smart lunch identification (Only if 4+ UNIQUE scans)
-                if (uniquePunches.length >= 4) {
-                    updateData.lunchOutAt = uniquePunches[1].time;
-                    updateData.lunchInAt = uniquePunches[2].time;
-                } else {
-                    updateData.lunchOutAt = null;
-                    updateData.lunchInAt = null;
-                }
+                // Lunch identification removed per user request
+                updateData.lunchOutAt = null;
+                updateData.lunchInAt = null;
 
             await prisma.timesheet.update({
                 where: { id: ts.id },

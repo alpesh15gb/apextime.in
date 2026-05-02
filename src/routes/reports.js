@@ -140,30 +140,9 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                         outTime = dayjs(record.outAt).format('HH:mm'); 
                         let grossWorkMs = dayjs(record.outAt).diff(dayjs(record.inAt));
                         
-                        // Lunch Logic
-                        const lDuration = empShift?.lunchDuration ?? 1.0;
-                        const lThreshold = empShift?.lunchThreshold ?? 4.0;
-                        
-                        // Use actual punches if both exist AND there are at least 4 punches total
-                        let punchesCount = 0;
-                        if (record.punches) {
-                            try {
-                                const pRaw = record.punches;
-                                const pArr = typeof pRaw === 'string' ? JSON.parse(pRaw) : pRaw;
-                                punchesCount = Array.isArray(pArr) ? pArr.length : 0;
-                            } catch (e) { punchesCount = 0; }
-                        }
-                        
-                        if (record.lunchOutAt && record.lunchInAt && punchesCount >= 4) {
-                            lunchMs = dayjs(record.lunchInAt).diff(dayjs(record.lunchOutAt));
-                            inTimeLunch = dayjs(record.lunchInAt).format('HH:mm');
-                            outTimeLunch = dayjs(record.lunchOutAt).format('HH:mm');
-                        } else if (grossWorkMs > lThreshold * 3600000) {
-                            // Fallback to default duration
-                            lunchMs = lDuration * 3600000;
-                        }
-
-                        workMs = Math.max(0, grossWorkMs - lunchMs);
+                        // Lunch Logic Removed per user request
+                        lunchMs = 0;
+                        workMs = grossWorkMs;
                     }
 
                     if (empShift.isFlexible) {
@@ -221,10 +200,8 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                     const minWorkMs = 9 * 3600000;
                     if (workMs > 0) {
                         // Apply default lunch logic for unassigned
-                        if (workMs > 4 * 3600000) {
-                            lunchMs = 1 * 3600000;
-                            workMs = Math.max(0, workMs - lunchMs);
-                        }
+                        // Apply default lunch logic for unassigned (Removed)
+                        lunchMs = 0;
 
                         if (workMs < minWorkMs) {
                             early = formatDuration(minWorkMs - workMs);

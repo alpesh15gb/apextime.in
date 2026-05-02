@@ -231,11 +231,9 @@ router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
                                 
                                 const updateData = { punches: updatedPunches };
                                 
-                                // Smart Logic: Only identify lunch if there are 4+ total scans
-                                if (updatedPunches.length === 3) { // This is the 4th scan of the day
-                                    updateData.lunchOutAt = updatedPunches[1].time;
-                                    updateData.lunchInAt = updatedPunches[2].time;
-                                }
+                                // Lunch identification removed per user request (Simplified In/Out logic)
+                                // No lunchOutAt/lunchInAt will be identified from intermediate punches
+
                                 
                                 // Always update final outAt with the latest punch
                                 updateData.outAt = punchTime;
