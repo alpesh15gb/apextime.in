@@ -60,20 +60,33 @@ async function backfill() {
                 const updateData = {
                     punches: uniquePunches,
                     inAt: uniquePunches[0].time,
-                    outAt: uniquePunches.length > 1 ? uniquePunches[uniquePunches.length - 1].time : null
+                    outAt: uniquePunches.length > 1 ? uniquePunches[uniquePunches.length - 1].time : null,
+                    lunchOutAt: null,
+                    lunchInAt: null
                 };
 
-                // Lunch identification removed per user request
-                updateData.lunchOutAt = null;
-                updateData.lunchInAt = null;
-
-            await prisma.timesheet.update({
-                where: { id: ts.id },
-                data: updateData
-            });
+                await prisma.timesheet.update({
+                    where: { id: ts.id },
+                    data: updateData
+                });
+                
+                updatedCount++;
+            } else if (ts.inAt && ts.outAt && dayjs(ts.inAt).isSame(dayjs(ts.outAt))) {
+                // FALLBACK: No logs found in DeviceLog table, but Timesheet has matching IN/OUT.
+                // This usually happens if logs were cleared or if it's an older record.
+                // We set outAt to null to indicate a single punch (Active status).
+                await prisma.timesheet.update({
+                    where: { id: ts.id },
+                    data: { 
+                        outAt: null,
+                        lunchOutAt: null,
+                        lunchInAt: null
+                    }
+                });
+                updatedCount++;
+            }
             
-            updatedCount++;
-            if (updatedCount % 50 === 0) console.log(`Updated ${updatedCount} records...`);
+            if (updatedCount % 50 === 0 && updatedCount > 0) console.log(`Updated ${updatedCount} records...`);
         }
     }
 
