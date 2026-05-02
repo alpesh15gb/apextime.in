@@ -5,10 +5,14 @@ const path = require('path');
 async function backfill() {
     console.log('--- STARTING LUNCH BACKFILL ---');
     
+    const lastMonthStart = dayjs().subtract(1, 'month').startOf('month').toDate();
+    console.log(`Filtering records from: ${dayjs(lastMonthStart).format('YYYY-MM-DD')}`);
+
     // Find all timesheets
     const timesheets = await prisma.timesheet.findMany({
         where: {
-            source: 'device'
+            source: 'device',
+            date: { gte: lastMonthStart }
         },
         include: {
             employee: true
