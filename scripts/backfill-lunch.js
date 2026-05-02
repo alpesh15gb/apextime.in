@@ -56,7 +56,7 @@ async function backfill() {
                 const updateData = {
                     punches: uniquePunches,
                     inAt: uniquePunches[0].time,
-                    outAt: uniquePunches[uniquePunches.length - 1].time
+                    outAt: uniquePunches.length > 1 ? uniquePunches[uniquePunches.length - 1].time : null
                 };
 
                 // Lunch identification removed per user request

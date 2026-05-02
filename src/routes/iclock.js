@@ -252,7 +252,7 @@ router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
                                     employeeId: employee.id,
                                     date: new Date(dateStr),
                                     inAt: punchTime,
-                                    outAt: punchTime, // Initial out is same as in
+                                    outAt: null, // Initial out is null until a second punch is received
                                     punches: [firstPunch],
                                     source: 'device',
                                     status: 'auto_approved',
