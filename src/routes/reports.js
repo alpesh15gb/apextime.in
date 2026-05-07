@@ -125,6 +125,10 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
 
             let dayRec = null;
             const empShift = getEmployeeShiftForDate(emp.id, currentDay, shiftAssignments);
+            
+            // Find timesheet for this day robustly
+            const record = timesheets.find(t => t.employeeId === emp.id && dayjs(t.date).format('YYYY-MM-DD') === dayKey);
+
             if (empShift) {
                 shiftName = empShift.shiftName;
                 dayRec = empShift.dayRecord;
@@ -133,7 +137,6 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                     shiftName = 'OFF';
                 }
 
-                const record = timesheets.find(t => t.employeeId === emp.id && dayjs(t.date).isSame(currentDay, 'day'));
                 if (record) {
                     if (record.inAt) { inTime = dayjs(record.inAt).format('HH:mm'); status = 'P'; }
                     if (record.outAt) { 
@@ -188,7 +191,6 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                 }
             } else {
                 if (dayOfWeek === 0) { status = 'WO'; shiftName = 'OFF'; }
-                const record = timesheets.find(t => t.employeeId === emp.id && dayjs(t.date).isSame(currentDay, 'day'));
                 if (record) {
                     if (record.inAt) { inTime = dayjs(record.inAt).format('HH:mm'); status = 'P'; }
                     if (record.outAt) { 

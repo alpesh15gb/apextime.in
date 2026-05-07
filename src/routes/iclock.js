@@ -6,6 +6,9 @@ const express = require('express');
 const router = express.Router();
 const prisma = require('../lib/prisma');
 const dayjs = require('dayjs');
+const customParseFormat = require('dayjs/plugin/customParseFormat');
+dayjs.extend(customParseFormat);
+
 
 // Parse raw text body for ADMS updates (sometimes sent as text/plain or octet-stream)
 router.use(express.text({ type: '*/*', limit: '10mb' }));
@@ -208,17 +211,29 @@ router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
                     if (employee) {
                         const dateStr = dayjs(punchTime).format('YYYY-MM-DD');
 
-                        // Check for existing timesheet for the day
+                        // Check for existing timesheet for the day using a range to avoid timezone issues
+                        const startOfDay = dayjs(dateStr).startOf('day').toDate();
+                        const endOfDay = dayjs(dateStr).endOf('day').toDate();
+
                         const existingTimesheet = await prisma.timesheet.findFirst({
                             where: {
+                                tenantId: device.tenantId,
                                 employeeId: employee.id,
-                                date: new Date(dateStr)
+                                date: {
+                                    gte: startOfDay,
+                                    lte: endOfDay
+                                }
                             },
                         });
 
                         if (existingTimesheet) {
                             // Timesheet exists. 
-                            const existingPunches = existingTimesheet.punches || [];
+                            let existingPunches = existingTimesheet.punches || [];
+                            if (typeof existingPunches === 'string') {
+                                try { existingPunches = JSON.parse(existingPunches); } catch (e) { existingPunches = []; }
+                            }
+                            if (!Array.isArray(existingPunches)) existingPunches = [];
+
                             const lastPunchTime = existingPunches.length > 0 
                                 ? dayjs(existingPunches[existingPunches.length - 1].time) 
                                 : dayjs(existingTimesheet.inAt);
@@ -231,10 +246,6 @@ router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
                                 
                                 const updateData = { punches: updatedPunches };
                                 
-                                // Lunch identification removed per user request (Simplified In/Out logic)
-                                // No lunchOutAt/lunchInAt will be identified from intermediate punches
-
-                                
                                 // Always update final outAt with the latest punch
                                 updateData.outAt = punchTime;
 
@@ -242,23 +253,29 @@ router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
                                     where: { id: existingTimesheet.id },
                                     data: updateData,
                                 });
+                                console.log(`[iClock] Updated TS ${existingTimesheet.id} for ${userId} with punch ${dayjs(punchTime).format('HH:mm')}`);
+                            } else {
+                                console.log(`[iClock] Ignored duplicate punch for ${userId} (diff: ${diffFromLastMs}ms)`);
                             }
                         } else {
                             // First punch of the day: Clock in
                             const firstPunch = { time: punchTime, device_sn: SN, type: 'in' };
+                            const startOfDay = dayjs(dateStr).startOf('day').toDate();
+                            
                             await prisma.timesheet.create({
                                 data: {
                                     tenantId: device.tenantId,
                                     employeeId: employee.id,
-                                    date: new Date(dateStr),
+                                    date: startOfDay,
                                     inAt: punchTime,
-                                    outAt: null, // Initial out is null until a second punch is received
+                                    outAt: null, 
                                     punches: [firstPunch],
                                     source: 'device',
                                     status: 'auto_approved',
                                     meta: { device_sn: SN, verify_mode: verifyMode, in_out_mode: inOutMode },
                                 },
                             });
+                            console.log(`[iClock] Created new TS for ${userId} at ${dayjs(punchTime).format('HH:mm')}`);
                         }
 
                         // Mark log as processed
