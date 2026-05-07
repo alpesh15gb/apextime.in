@@ -85,7 +85,6 @@ async function backfill() {
             updatedCount++;
             if (updatedCount % 50 === 0 && updatedCount > 0) console.log(`Updated ${updatedCount} records...`);
         }
-    }
 
     console.log(`\nCOMPLETED: Updated ${updatedCount} records.`);
     process.exit(0);
