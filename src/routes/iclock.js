@@ -219,18 +219,14 @@ router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
                     if (employee) {
                         const dateStr = dayjs.tz(punchTime, TZ).format('YYYY-MM-DD');
 
-                        // Check for existing timesheet for the day using a range to avoid timezone issues
-                        const startOfDay = dayjs.tz(dateStr, TZ).startOf('day').toDate();
-                        const endOfDay = dayjs.tz(dateStr, TZ).endOf('day').toDate();
-
+                        // Check for existing timesheet for the day using UTC for the DATE column to avoid shifting
+                        const dbDate = dayjs.utc(dateStr).toDate();
+                        
                         const existingTimesheet = await prisma.timesheet.findFirst({
                             where: {
                                 tenantId: device.tenantId,
                                 employeeId: employee.id,
-                                date: {
-                                    gte: startOfDay,
-                                    lte: endOfDay
-                                }
+                                date: dbDate
                             },
                         });
 
@@ -268,13 +264,13 @@ router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
                         } else {
                             // First punch of the day: Clock in
                             const firstPunch = { time: punchTime, device_sn: SN, type: 'in' };
-                            const startOfDay = dayjs.tz(dateStr, TZ).startOf('day').toDate();
+                            const dbDate = dayjs.utc(dateStr).toDate();
                             
                             await prisma.timesheet.create({
                                 data: {
                                     tenantId: device.tenantId,
                                     employeeId: employee.id,
-                                    date: startOfDay,
+                                    date: dbDate,
                                     inAt: punchTime,
                                     outAt: null, 
                                     punches: [firstPunch],

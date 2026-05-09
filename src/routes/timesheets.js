@@ -5,6 +5,12 @@ const { v4: uuidv4 } = require('uuid');
 const prisma = require('../lib/prisma');
 const { requireRole } = require('../middleware/auth');
 const dayjs = require('dayjs');
+const utc = require('dayjs/plugin/utc');
+const timezone = require('dayjs/plugin/timezone');
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const TZ = 'Asia/Kolkata';
 
 // Multer config for selfie uploads
 const storage = multer.diskStorage({
@@ -119,15 +125,15 @@ router.post('/punch', upload.single('photo'), async (req, res, next) => {
         }
 
         const employee = req.user.employee;
-        const now = dayjs().tz('Asia/Kolkata');
-        const today = now.format('YYYY-MM-DD');
+        const now = dayjs().tz(TZ);
+        const todayStr = now.format('YYYY-MM-DD');
         const photoUrl = req.file ? `/uploads/punches/${req.file.filename}` : null;
 
         // Find existing open timesheet for today
         const existingTimesheet = await prisma.timesheet.findFirst({
             where: {
                 employeeId: employee.id,
-                date: new Date(today),
+                date: dayjs.utc(todayStr).startOf('day').toDate(),
                 outAt: null,
                 source: 'mobile',
             },
@@ -159,7 +165,7 @@ router.post('/punch', upload.single('photo'), async (req, res, next) => {
                 data: {
                     tenantId: req.tenantId,
                     employeeId: employee.id,
-                    date: new Date(today),
+                    date: dayjs.utc(todayStr).startOf('day').toDate(),
                     inAt: now.toDate(),
                     source: 'mobile',
                     status: 'pending', // Needs admin approval
@@ -232,7 +238,7 @@ router.post('/:uuid/reject', requireRole('admin', 'super_admin'), async (req, re
 // GET /api/attendance/report - Daily attendance report
 router.get('/report', requireRole('admin', 'super_admin'), async (req, res, next) => {
     try {
-        const date = req.query.date || dayjs().format('YYYY-MM-DD');
+        const date = req.query.date || dayjs().tz(TZ).format('YYYY-MM-DD');
 
         const employees = await prisma.employee.findMany({
             where: { tenantId: req.tenantId, status: 'active' },
@@ -243,7 +249,7 @@ router.get('/report', requireRole('admin', 'super_admin'), async (req, res, next
         const timesheets = await prisma.timesheet.findMany({
             where: {
                 tenantId: req.tenantId,
-                date: new Date(date),
+                date: dayjs.utc(date).startOf('day').toDate(),
                 status: { in: ['auto_approved', 'approved'] },
             },
         });
@@ -296,9 +302,9 @@ router.post('/manual', requireRole('admin', 'super_admin'), async (req, res, nex
             data: {
                 tenantId: req.tenantId,
                 employeeId: employee.id,
-                date: new Date(date),
-                inAt: inAt ? new Date(inAt) : null,
-                outAt: outAt ? new Date(outAt) : null,
+                date: dayjs.utc(date).startOf('day').toDate(),
+                inAt: inAt ? dayjs.tz(inAt, TZ).toDate() : null,
+                outAt: outAt ? dayjs.tz(outAt, TZ).toDate() : null,
                 source: 'manual',
                 status: 'auto_approved',
                 reviewedBy: req.userId,

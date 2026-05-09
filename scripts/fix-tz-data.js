@@ -8,46 +8,44 @@ dayjs.extend(timezone);
 const TZ = 'Asia/Kolkata';
 
 async function runGlobalFix() {
-    console.log('--- STARTING GLOBAL TIMEZONE DATA REPAIR ---');
-    console.log('Target Timezone: Asia/Kolkata (IST)');
+    console.log('--- STARTING GLOBAL TIMEZONE DATA REPAIR (v2) ---');
+    console.log('Rule: Date column must match inAt date in IST.');
     
     try {
-        // Fetch all timesheets from the last 30 days (or more if needed)
-        // We focus on recent ones but can remove the date filter to scan everything
         const timesheets = await prisma.timesheet.findMany({
             where: {
                 inAt: { not: null }
             },
             include: {
-                employee: true
+                employee: { include: { contact: true } }
             }
         });
 
-        console.log(`Scanning ${timesheets.length} total records...`);
-        let movedCount = 0;
+        console.log(`Scanning ${timesheets.length} records...`);
+        let repairedCount = 0;
 
         for (const ts of timesheets) {
-            const actualPunchDate = dayjs.tz(ts.inAt, TZ).format('YYYY-MM-DD');
-            const recordedDate = dayjs.tz(ts.date, TZ).format('YYYY-MM-DD');
+            const actualPunchDateStr = dayjs.tz(ts.inAt, TZ).format('YYYY-MM-DD');
+            const recordedDateStr = dayjs.utc(ts.date).format('YYYY-MM-DD');
 
-            // If they don't match, the record is on the wrong day
-            if (actualPunchDate !== recordedDate) {
-                console.log(`[FIX] TS ${ts.id} (Emp: ${ts.employee.employeeCode})`);
-                console.log(`      Recorded: ${recordedDate}, Actual: ${actualPunchDate} (at ${dayjs.tz(ts.inAt, TZ).format('HH:mm')})`);
+            if (actualPunchDateStr !== recordedDateStr) {
+                console.log(`[FIX] TS ${ts.id} (${ts.employee.contact.firstName})`);
+                console.log(`      Recorded: ${recordedDateStr}, Actual: ${actualPunchDateStr}`);
                 
-                const correctDate = dayjs.tz(actualPunchDate, TZ).startOf('day').toDate();
+                // Use UTC to ensure the DATE column stores the exact string
+                const correctDbDate = dayjs.utc(actualPunchDateStr).toDate();
                 
                 await prisma.timesheet.update({
                     where: { id: ts.id },
-                    data: { date: correctDate }
+                    data: { date: correctDbDate }
                 });
-                movedCount++;
+                repairedCount++;
             }
         }
 
-        console.log(`\nSUCCESS: Repaired ${movedCount} historical records.`);
+        console.log(`\nSUCCESS: Repaired ${repairedCount} records.`);
     } catch (error) {
-        console.error('ERROR during repair:', error);
+        console.error('ERROR:', error);
     } finally {
         await prisma.$disconnect();
         process.exit(0);

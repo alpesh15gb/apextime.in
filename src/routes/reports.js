@@ -76,7 +76,10 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
     const timesheets = await prisma.timesheet.findMany({
         where: {
             tenantId,
-            date: { gte: start.toDate(), lte: end.toDate() },
+            date: { 
+                gte: dayjs.utc(startDate).startOf('day').toDate(), 
+                lte: dayjs.utc(endDate).endOf('day').toDate() 
+            },
             employeeId: { in: empIds }
         }
     });
@@ -132,8 +135,8 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
             let dayRec = null;
             const empShift = getEmployeeShiftForDate(emp.id, currentDay, shiftAssignments);
             
-            // Find timesheet for this day robustly
-            const record = timesheets.find(t => t.employeeId === emp.id && dayjs.tz(t.date, TZ).format('YYYY-MM-DD') === dayKey);
+            // Find timesheet for this day robustly using UTC date part comparison
+            const record = timesheets.find(t => t.employeeId === emp.id && dayjs.utc(t.date).format('YYYY-MM-DD') === dayKey);
 
             if (empShift) {
                 shiftName = empShift.shiftName;
@@ -327,7 +330,7 @@ router.get('/approvals', async (req, res, next) => {
 
             return {
                 id: r.id,
-                date: dayjs.tz(r.date, TZ).format('YYYY-MM-DD'),
+                date: dayjs.utc(r.date).format('YYYY-MM-DD'),
                 employeeName: `${r.employee.contact.firstName} ${r.employee.contact.lastName || ''}`.trim(),
                 employeeCode: r.employee.employeeCode,
                 department: r.employee.department?.name || '-',
