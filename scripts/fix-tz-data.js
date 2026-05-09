@@ -7,42 +7,51 @@ dayjs.extend(timezone);
 
 const TZ = 'Asia/Kolkata';
 
-async function runFix() {
-    console.log('--- STARTING TIMEZONE DATA FIX (Terminal) ---');
-    
-    // Target date: May 9th (where the misplaced records are)
-    const targetDate = dayjs.tz('2026-05-09', TZ).startOf('day').toDate();
+async function runGlobalFix() {
+    console.log('--- STARTING GLOBAL TIMEZONE DATA REPAIR ---');
+    console.log('Target Timezone: Asia/Kolkata (IST)');
     
     try {
+        // Fetch all timesheets from the last 30 days (or more if needed)
+        // We focus on recent ones but can remove the date filter to scan everything
         const timesheets = await prisma.timesheet.findMany({
             where: {
-                date: targetDate
+                inAt: { not: null }
+            },
+            include: {
+                employee: true
             }
         });
 
-        console.log(`Checking ${timesheets.length} records on May 9th...`);
+        console.log(`Scanning ${timesheets.length} total records...`);
         let movedCount = 0;
 
         for (const ts of timesheets) {
-            const inAt = ts.inAt ? dayjs.tz(ts.inAt, TZ) : null;
-            // If the actual punch happened on May 10th, move it
-            if (inAt && inAt.format('YYYY-MM-DD') === '2026-05-10') {
-                console.log(`Moving TS ${ts.id} (Employee ID: ${ts.employeeId}) -> May 10th`);
+            const actualPunchDate = dayjs.tz(ts.inAt, TZ).format('YYYY-MM-DD');
+            const recordedDate = dayjs.tz(ts.date, TZ).format('YYYY-MM-DD');
+
+            // If they don't match, the record is on the wrong day
+            if (actualPunchDate !== recordedDate) {
+                console.log(`[FIX] TS ${ts.id} (Emp: ${ts.employee.employeeCode})`);
+                console.log(`      Recorded: ${recordedDate}, Actual: ${actualPunchDate} (at ${dayjs.tz(ts.inAt, TZ).format('HH:mm')})`);
+                
+                const correctDate = dayjs.tz(actualPunchDate, TZ).startOf('day').toDate();
+                
                 await prisma.timesheet.update({
                     where: { id: ts.id },
-                    data: { date: dayjs.tz('2026-05-10', TZ).startOf('day').toDate() }
+                    data: { date: correctDate }
                 });
                 movedCount++;
             }
         }
 
-        console.log(`\nSUCCESS: Moved ${movedCount} records.`);
+        console.log(`\nSUCCESS: Repaired ${movedCount} historical records.`);
     } catch (error) {
-        console.error('FAILED:', error);
+        console.error('ERROR during repair:', error);
     } finally {
         await prisma.$disconnect();
         process.exit(0);
     }
 }
 
-runFix();
+runGlobalFix();
