@@ -7,7 +7,14 @@ const router = express.Router();
 const prisma = require('../lib/prisma');
 const dayjs = require('dayjs');
 const customParseFormat = require('dayjs/plugin/customParseFormat');
+const utc = require('dayjs/plugin/utc');
+const timezone = require('dayjs/plugin/timezone');
 dayjs.extend(customParseFormat);
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+// Set default timezone to India
+const TZ = 'Asia/Kolkata';
 
 
 // Parse raw text body for ADMS updates (sometimes sent as text/plain or octet-stream)
@@ -134,7 +141,8 @@ router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
                     if (!userId || !dateTimeStr) continue;
 
                     // Log the raw data
-                    const punchTime = dayjs(dateTimeStr, 'YYYY-MM-DD HH:mm:ss').toDate();
+                    // Parse as local time (Asia/Kolkata) because devices are in India
+                    const punchTime = dayjs.tz(dateTimeStr, 'YYYY-MM-DD HH:mm:ss', TZ).toDate();
 
                     // Check for existing log
                     let currentLog = await prisma.deviceLog.findFirst({
@@ -209,11 +217,11 @@ router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
                     }
 
                     if (employee) {
-                        const dateStr = dayjs(punchTime).format('YYYY-MM-DD');
+                        const dateStr = dayjs.tz(punchTime, TZ).format('YYYY-MM-DD');
 
                         // Check for existing timesheet for the day using a range to avoid timezone issues
-                        const startOfDay = dayjs(dateStr).startOf('day').toDate();
-                        const endOfDay = dayjs(dateStr).endOf('day').toDate();
+                        const startOfDay = dayjs.tz(dateStr, TZ).startOf('day').toDate();
+                        const endOfDay = dayjs.tz(dateStr, TZ).endOf('day').toDate();
 
                         const existingTimesheet = await prisma.timesheet.findFirst({
                             where: {
@@ -260,7 +268,7 @@ router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
                         } else {
                             // First punch of the day: Clock in
                             const firstPunch = { time: punchTime, device_sn: SN, type: 'in' };
-                            const startOfDay = dayjs(dateStr).startOf('day').toDate();
+                            const startOfDay = dayjs.tz(dateStr, TZ).startOf('day').toDate();
                             
                             await prisma.timesheet.create({
                                 data: {

@@ -1,12 +1,18 @@
 const prisma = require('../src/lib/prisma');
 const dayjs = require('dayjs');
+const utc = require('dayjs/plugin/utc');
+const timezone = require('dayjs/plugin/timezone');
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const TZ = 'Asia/Kolkata';
 const path = require('path');
 
 async function backfill() {
     console.log('--- STARTING LUNCH BACKFILL ---');
     
-    const lastMonthStart = dayjs().subtract(1, 'month').startOf('month').toDate();
-    console.log(`Filtering records from: ${dayjs(lastMonthStart).format('YYYY-MM-DD')}`);
+    const lastMonthStart = dayjs.tz(dayjs(), TZ).subtract(1, 'month').startOf('month').toDate();
+    console.log(`Filtering records from: ${dayjs.tz(lastMonthStart, TZ).format('YYYY-MM-DD')}`);
 
     // Find all timesheets
     const timesheets = await prisma.timesheet.findMany({
@@ -24,8 +30,7 @@ async function backfill() {
     let updatedCount = 0;
 
     for (const ts of timesheets) {
-        const dateStr = dayjs(ts.date).format('YYYY-MM-DD');
-        const nextDateStr = dayjs(ts.date).add(1, 'day').format('YYYY-MM-DD');
+        const dateStr = dayjs.tz(ts.date, TZ).format('YYYY-MM-DD');
 
         // Find all logs for this employee on this day
         const logs = await prisma.deviceLog.findMany({
@@ -33,8 +38,8 @@ async function backfill() {
                 tenantId: ts.tenantId,
                 userId: ts.employee.employeeCode,
                 punchTime: {
-                    gte: dayjs(dateStr).startOf('day').toDate(),
-                    lt: dayjs(dateStr).endOf('day').toDate()
+                    gte: dayjs.tz(dateStr, TZ).startOf('day').toDate(),
+                    lt: dayjs.tz(dateStr, TZ).endOf('day').toDate()
                 }
             },
             orderBy: {
@@ -46,7 +51,7 @@ async function backfill() {
             if (logs.length > 0) {
                 const seenTimes = new Set();
                 for (const log of logs) {
-                    const timeStr = dayjs(log.punchTime).format('YYYY-MM-DD HH:mm');
+                    const timeStr = dayjs.tz(log.punchTime, TZ).format('YYYY-MM-DD HH:mm');
                     if (!seenTimes.has(timeStr)) {
                         uniquePunches.push({
                             time: log.punchTime,

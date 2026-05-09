@@ -1,6 +1,12 @@
 const router = require('express').Router();
 const prisma = require('../lib/prisma');
 const dayjs = require('dayjs');
+const utc = require('dayjs/plugin/utc');
+const timezone = require('dayjs/plugin/timezone');
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+const TZ = 'Asia/Kolkata';
 
 // Helper to format duration (ms -> HH:mm)
 const formatDuration = (ms) => {
@@ -46,8 +52,8 @@ const getEmployeeShiftForDate = (empId, dateObj, shiftAssignments) => {
 
 // Generic Helper for Attendance Grid Data
 const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId) => {
-    const start = dayjs(startDate).startOf('day');
-    const end = dayjs(endDate).endOf('day');
+    const start = dayjs.tz(startDate, TZ).startOf('day');
+    const end = dayjs.tz(endDate, TZ).endOf('day');
     const diffDays = end.diff(start, 'day') + 1;
 
     // 1. Fetch Employees
@@ -127,7 +133,7 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
             const empShift = getEmployeeShiftForDate(emp.id, currentDay, shiftAssignments);
             
             // Find timesheet for this day robustly
-            const record = timesheets.find(t => t.employeeId === emp.id && dayjs(t.date).format('YYYY-MM-DD') === dayKey);
+            const record = timesheets.find(t => t.employeeId === emp.id && dayjs.tz(t.date, TZ).format('YYYY-MM-DD') === dayKey);
 
             if (empShift) {
                 shiftName = empShift.shiftName;
@@ -138,9 +144,9 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                 }
 
                 if (record) {
-                    if (record.inAt) { inTime = dayjs(record.inAt).format('HH:mm'); status = 'P'; }
+                    if (record.inAt) { inTime = dayjs.tz(record.inAt, TZ).format('HH:mm'); status = 'P'; }
                     if (record.outAt) { 
-                        outTime = dayjs(record.outAt).format('HH:mm'); 
+                        outTime = dayjs.tz(record.outAt, TZ).format('HH:mm'); 
                         let grossWorkMs = dayjs(record.outAt).diff(dayjs(record.inAt));
                         
                         // Lunch Logic Removed per user request
@@ -168,7 +174,8 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                         const shiftStartMins = timeToMinutes(dayRec.startTime);
                         const graceMins = dayRec.graceMins || 0;
                         if (record.inAt && shiftStartMins !== null) {
-                            const punchInMins = dayjs(record.inAt).hour() * 60 + dayjs(record.inAt).minute();
+                            const punchIn = dayjs.tz(record.inAt, TZ);
+                            const punchInMins = punchIn.hour() * 60 + punchIn.minute();
                             const allowedStart = shiftStartMins + graceMins;
                             if (punchInMins > allowedStart) {
                                 lateMs = (punchInMins - shiftStartMins) * 60000;
@@ -274,8 +281,8 @@ router.get('/monthly', async (req, res, next) => {
         const m = month ? parseInt(month) : dayjs().month() + 1;
         const y = year ? parseInt(year) : dayjs().year();
 
-        const startOfMonth = dayjs(`${y}-${m}-01`).startOf('month').format('YYYY-MM-DD');
-        const endOfMonth = dayjs(`${y}-${m}-01`).endOf('month').format('YYYY-MM-DD');
+        const startOfMonth = dayjs.tz(`${y}-${m}-01`, TZ).startOf('month').format('YYYY-MM-DD');
+        const endOfMonth = dayjs.tz(`${y}-${m}-01`, TZ).endOf('month').format('YYYY-MM-DD');
 
         const result = await getAttendanceGridData(req.tenantId, startOfMonth, endOfMonth, departmentId);
         res.json(result);
@@ -320,12 +327,12 @@ router.get('/approvals', async (req, res, next) => {
 
             return {
                 id: r.id,
-                date: dayjs(r.date).format('YYYY-MM-DD'),
+                date: dayjs.tz(r.date, TZ).format('YYYY-MM-DD'),
                 employeeName: `${r.employee.contact.firstName} ${r.employee.contact.lastName || ''}`.trim(),
                 employeeCode: r.employee.employeeCode,
                 department: r.employee.department?.name || '-',
-                inTime: r.inAt ? dayjs(r.inAt).format('HH:mm') : '-',
-                outTime: r.outAt ? dayjs(r.outAt).format('HH:mm') : '-',
+                inTime: r.inAt ? dayjs.tz(r.inAt, TZ).format('HH:mm') : '-',
+                outTime: r.outAt ? dayjs.tz(r.outAt, TZ).format('HH:mm') : '-',
                 status: r.status,
                 reviewedBy: r.reviewer?.username || (r.status === 'auto_approved' ? 'System' : '-'),
                 reviewedAt: r.reviewedAt ? dayjs(r.reviewedAt).format('YYYY-MM-DD HH:mm') : '-',
@@ -338,6 +345,39 @@ router.get('/approvals', async (req, res, next) => {
         res.json(formatted);
 
     } catch (error) { next(error); }
+});
+
+// TEMPORARY: Fix timezone data issue (10th showing on 9th)
+router.get('/fix-tz-data', async (req, res, next) => {
+    try {
+        console.log('[Fix] Starting timezone data fix...');
+        // Find all timesheets on May 9th for the current tenant
+        const timesheets = await prisma.timesheet.findMany({
+            where: {
+                tenantId: req.tenantId,
+                date: dayjs.tz('2026-05-09', TZ).startOf('day').toDate()
+            }
+        });
+
+        let movedCount = 0;
+        for (const ts of timesheets) {
+            // Check if the punch-in or any punch is actually on May 10th in IST
+            const inAt = ts.inAt ? dayjs.tz(ts.inAt, TZ) : null;
+            if (inAt && inAt.format('YYYY-MM-DD') === '2026-05-10') {
+                console.log(`[Fix] Moving timesheet ${ts.id} for employee ${ts.employeeId} to May 10th`);
+                await prisma.timesheet.update({
+                    where: { id: ts.id },
+                    data: { date: dayjs.tz('2026-05-10', TZ).startOf('day').toDate() }
+                });
+                movedCount++;
+            }
+        }
+
+        res.json({ success: true, moved: movedCount, checked: timesheets.length });
+    } catch (error) {
+        console.error('[Fix] Error:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 module.exports = router;
