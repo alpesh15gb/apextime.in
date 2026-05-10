@@ -101,8 +101,74 @@ router.post('/:uuid/sync', requireRole('admin', 'super_admin'), async (req, res,
     } catch (error) { next(error); }
 });
 
+// POST /api/devices/:uuid/reboot
+router.post('/:uuid/reboot', requireRole('admin', 'super_admin'), async (req, res, next) => {
+    try {
+        const device = await prisma.device.findUnique({ where: { uuid: req.params.uuid } });
+        if (!device || device.tenantId !== req.tenantId) return res.status(404).json({ error: 'Device not found' });
+
+        await prisma.deviceCommand.create({
+            data: { deviceId: device.id, command: 'REBOOT', status: 'pending' },
+        });
+        res.json({ message: 'Reboot command queued' });
+    } catch (error) { next(error); }
+});
+
+// POST /api/devices/:uuid/clear-admin
+router.post('/:uuid/clear-admin', requireRole('admin', 'super_admin'), async (req, res, next) => {
+    try {
+        const device = await prisma.device.findUnique({ where: { uuid: req.params.uuid } });
+        if (!device || device.tenantId !== req.tenantId) return res.status(404).json({ error: 'Device not found' });
+
+        await prisma.deviceCommand.create({
+            data: { deviceId: device.id, command: 'CLEAR ADMIN', status: 'pending' },
+        });
+        res.json({ message: 'Clear admin command queued' });
+    } catch (error) { next(error); }
+});
+
+// POST /api/devices/:uuid/set-time
+router.post('/:uuid/set-time', requireRole('admin', 'super_admin'), async (req, res, next) => {
+    try {
+        const device = await prisma.device.findUnique({ where: { uuid: req.params.uuid } });
+        if (!device || device.tenantId !== req.tenantId) return res.status(404).json({ error: 'Device not found' });
+
+        const now = require('dayjs')().format('YYYY-MM-DD HH:mm:ss');
+        await prisma.deviceCommand.create({
+            data: { deviceId: device.id, command: `SET TIME ${now}`, status: 'pending' },
+        });
+        res.json({ message: 'Time sync command queued' });
+    } catch (error) { next(error); }
+});
+
+// POST /api/devices/sync-user-all/:employeeUuid
+router.post('/sync-user-all/:employeeUuid', requireRole('admin', 'super_admin'), async (req, res, next) => {
+    try {
+        const employee = await prisma.employee.findUnique({
+            where: { uuid: req.params.employeeUuid },
+            include: { contact: true }
+        });
+        if (!employee || employee.tenantId !== req.tenantId) return res.status(404).json({ error: 'Employee not found' });
+
+        const devices = await prisma.device.findMany({
+            where: { tenantId: req.tenantId, status: 'active' }
+        });
+
+        const name = (employee.contact.firstName + ' ' + (employee.contact.lastName || '')).trim();
+        const command = `DATA UPDATE USERINFO PIN=${employee.employeeCode}\tName=${name}\tPri=0\tPass=\tGrp=1\tTag=0`;
+
+        const commandPromises = devices.map(d =>
+            prisma.deviceCommand.create({
+                data: { deviceId: d.id, command, status: 'pending' },
+            })
+        );
+
+        await Promise.all(commandPromises);
+        res.json({ message: `User sync command queued for ${devices.length} devices` });
+    } catch (error) { next(error); }
+});
+
 // DELETE /api/devices/:uuid
-router.delete('/:uuid', requireRole('admin', 'super_admin'), async (req, res, next) => {
     try {
         const device = await prisma.device.findUnique({ where: { uuid: req.params.uuid } });
         if (!device || device.tenantId !== req.tenantId) {

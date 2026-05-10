@@ -32,6 +32,20 @@ export default function Devices() {
         } catch (err) { alert(err.response?.data?.message || 'Failed to queue command'); }
     };
 
+    const rebootDevice = async (uuid) => {
+        if (!confirm('Reboot this device?')) return;
+        try { await api.post(`/devices/${uuid}/reboot`); alert('Reboot command queued'); } catch (err) { alert('Failed'); }
+    };
+
+    const setTime = async (uuid) => {
+        try { await api.post(`/devices/${uuid}/set-time`); alert('Time sync command queued'); } catch (err) { alert('Failed'); }
+    };
+
+    const clearAdmin = async (uuid) => {
+        if (!confirm('Clear all administrator privileges on this device?')) return;
+        try { await api.post(`/devices/${uuid}/clear-admin`); alert('Clear admin command queued'); } catch (err) { alert('Failed'); }
+    };
+
     const deleteDevice = async (uuid) => {
         if (!confirm('Are you sure you want to delete this device? Associated logs may be kept but the device connection will be lost.')) return;
         try {
@@ -59,9 +73,11 @@ export default function Devices() {
                                 <td>{d.status === 'active' ? <span className="badge badge-success"><Wifi size={10} /> Active</span> : <span className="badge badge-danger"><WifiOff size={10} /> Offline</span>}</td>
                                 <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{d.lastSeenAt ? dayjs(d.lastSeenAt).format('DD MMM hh:mm A') : 'Never'}</td>
                                 <td>{d._count?.logs || 0}</td>
-                                <td>
-                                    <button className="btn btn-ghost btn-sm" onClick={() => regenerateToken(d.uuid)} title="New Token"><RefreshCw size={14} /></button>
+                                <td style={{ display: 'flex', gap: '4px' }}>
                                     <button className="btn btn-ghost btn-sm" onClick={() => syncDevice(d.uuid)} title="Pull Past Logs"><Download size={14} /> Sync</button>
+                                    <button className="btn btn-ghost btn-sm" onClick={() => setTime(d.uuid)} title="Sync Time"><RefreshCw size={14} /></button>
+                                    <button className="btn btn-ghost btn-sm" onClick={() => rebootDevice(d.uuid)} title="Reboot"><RefreshCw size={14} style={{ color: 'var(--warning)' }} /></button>
+                                    <button className="btn btn-ghost btn-sm" onClick={() => clearAdmin(d.uuid)} title="Clear Admin" style={{ color: 'var(--primary)' }}>A</button>
                                     <button className="btn btn-ghost btn-sm" onClick={() => deleteDevice(d.uuid)} title="Delete Device" style={{ color: 'var(--danger)' }}><Trash2 size={14} /></button>
                                 </td>
                             </tr>

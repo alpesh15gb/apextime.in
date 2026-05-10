@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../lib/api';
-import { Plus, Edit, Trash2, Search, Key } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, Key, UserPlus } from 'lucide-react';
 
 export default function Employees() {
     const [employees, setEmployees] = useState([]);
@@ -26,6 +26,13 @@ export default function Employees() {
     };
 
     useEffect(() => { loadData(); }, [search]);
+
+    const syncUser = async (uuid) => {
+        try {
+            await api.post(`/devices/sync-user-all/${uuid}`);
+            alert('Success: User sync command queued for all active devices.');
+        } catch (err) { alert('Failed to queue sync command'); }
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -110,6 +117,7 @@ export default function Employees() {
                                 <td>{emp.phone || '-'}</td>
                                 <td><span className={`badge badge-${emp.status === 'active' ? 'success' : 'danger'}`}>{emp.status}</span></td>
                                 <td style={{ display: 'flex', gap: '6px' }}>
+                                    <button className="btn btn-ghost btn-sm" onClick={() => syncUser(emp.uuid)} title="Push to Biometric Devices" style={{ color: 'var(--primary)' }}><UserPlus size={14} /></button>
                                     <button className="btn btn-ghost btn-sm" onClick={() => handleEdit(emp)}><Edit size={14} /></button>
                                     <button className="btn btn-ghost btn-sm" onClick={() => handleDelete(emp.uuid)}><Trash2 size={14} /></button>
                                 </td>
