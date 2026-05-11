@@ -220,34 +220,22 @@ router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
                         const nowIST = dayjs.tz(punchTime, TZ);
                         const dateStr = nowIST.format('YYYY-MM-DD');
 
-                        // 1. LOOKBACK LOGIC: Check if there's an existing timesheet in the last 14 hours
-                        // This handles overnight shifts where the "Out" punch is after midnight.
+                        // 1. ROBUST LOOKBACK: Check for any open or recent timesheet in the last 22 hours
+                        // This ensures we catch overnight shifts and late-day out punches perfectly.
                         let timesheet = await prisma.timesheet.findFirst({
                             where: {
                                 tenantId: device.tenantId,
                                 employeeId: employee.id,
                                 inAt: {
-                                    gte: dayjs(punchTime).subtract(14, 'hour').toDate(),
+                                    gte: dayjs(punchTime).subtract(22, 'hour').toDate(),
                                     lte: punchTime
                                 }
                             },
-                            orderBy: { inAt: 'desc' }
+                            orderBy: { inAt: 'desc' } // Get the most recent one
                         });
 
-                        // 2. If no lookback timesheet, check for one specifically on the calendar date
-                        if (!timesheet) {
-                            const dbDate = dayjs.utc(dateStr).toDate();
-                            timesheet = await prisma.timesheet.findFirst({
-                                where: {
-                                    tenantId: device.tenantId,
-                                    employeeId: employee.id,
-                                    date: dbDate
-                                },
-                            });
-                        }
-
                         if (timesheet) {
-                            // Timesheet exists (either today or an overnight one from last 14h)
+                            // Found a recent timesheet, update its OUT time
                             let existingPunches = timesheet.punches || [];
                             if (typeof existingPunches === 'string') {
                                 try { existingPunches = JSON.parse(existingPunches); } catch (e) { existingPunches = []; }
