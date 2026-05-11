@@ -217,22 +217,38 @@ router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
                     }
 
                     if (employee) {
-                        const dateStr = dayjs.tz(punchTime, TZ).format('YYYY-MM-DD');
+                        const nowIST = dayjs.tz(punchTime, TZ);
+                        const dateStr = nowIST.format('YYYY-MM-DD');
 
-                        // Check for existing timesheet for the day using UTC for the DATE column to avoid shifting
-                        const dbDate = dayjs.utc(dateStr).toDate();
-                        
-                        const existingTimesheet = await prisma.timesheet.findFirst({
+                        // 1. LOOKBACK LOGIC: Check if there's an existing timesheet in the last 14 hours
+                        // This handles overnight shifts where the "Out" punch is after midnight.
+                        let timesheet = await prisma.timesheet.findFirst({
                             where: {
                                 tenantId: device.tenantId,
                                 employeeId: employee.id,
-                                date: dbDate
+                                inAt: {
+                                    gte: dayjs(punchTime).subtract(14, 'hour').toDate(),
+                                    lte: punchTime
+                                }
                             },
+                            orderBy: { inAt: 'desc' }
                         });
 
-                        if (existingTimesheet) {
-                            // Timesheet exists. 
-                            let existingPunches = existingTimesheet.punches || [];
+                        // 2. If no lookback timesheet, check for one specifically on the calendar date
+                        if (!timesheet) {
+                            const dbDate = dayjs.utc(dateStr).toDate();
+                            timesheet = await prisma.timesheet.findFirst({
+                                where: {
+                                    tenantId: device.tenantId,
+                                    employeeId: employee.id,
+                                    date: dbDate
+                                },
+                            });
+                        }
+
+                        if (timesheet) {
+                            // Timesheet exists (either today or an overnight one from last 14h)
+                            let existingPunches = timesheet.punches || [];
                             if (typeof existingPunches === 'string') {
                                 try { existingPunches = JSON.parse(existingPunches); } catch (e) { existingPunches = []; }
                             }
@@ -240,7 +256,7 @@ router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
 
                             const lastPunchTime = existingPunches.length > 0 
                                 ? dayjs(existingPunches[existingPunches.length - 1].time) 
-                                : dayjs(existingTimesheet.inAt);
+                                : dayjs(timesheet.inAt);
 
                             const diffFromLastMs = dayjs(punchTime).diff(lastPunchTime);
                             
@@ -248,16 +264,15 @@ router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
                                 const newPunch = { time: punchTime, device_sn: SN, type: 'auto' };
                                 const updatedPunches = [...existingPunches, newPunch];
                                 
-                                const updateData = { punches: updatedPunches };
-                                
                                 // Always update final outAt with the latest punch
-                                updateData.outAt = punchTime;
-
                                 await prisma.timesheet.update({
-                                    where: { id: existingTimesheet.id },
-                                    data: updateData,
+                                    where: { id: timesheet.id },
+                                    data: { 
+                                        punches: updatedPunches,
+                                        outAt: punchTime 
+                                    },
                                 });
-                                console.log(`[iClock] Updated TS ${existingTimesheet.id} for ${userId} with punch ${dayjs(punchTime).format('HH:mm')}`);
+                                console.log(`[iClock] Updated TS ${timesheet.id} for ${userId} with OUT punch ${dayjs(punchTime).format('HH:mm')}`);
                             } else {
                                 console.log(`[iClock] Ignored duplicate punch for ${userId} (diff: ${diffFromLastMs}ms)`);
                             }
