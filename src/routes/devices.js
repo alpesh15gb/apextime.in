@@ -169,6 +169,7 @@ router.post('/sync-user-all/:employeeUuid', requireRole('admin', 'super_admin'),
 });
 
 // DELETE /api/devices/:uuid
+router.delete('/:uuid', requireRole('admin', 'super_admin'), async (req, res, next) => {
     try {
         const device = await prisma.device.findUnique({ where: { uuid: req.params.uuid } });
         if (!device || device.tenantId !== req.tenantId) {
