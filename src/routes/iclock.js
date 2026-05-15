@@ -222,17 +222,38 @@ router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
 
                         // 1. ROBUST LOOKBACK: Check for any open or recent timesheet in the last 22 hours
                         // This ensures we catch overnight shifts and late-day out punches perfectly.
+                        // If the device explicitly says this is an OUT punch (inOutMode '1' or '5'), 
+                        // we prioritize finding the most recent timesheet to close.
+                        let lookbackHours = 22;
+                        
                         let timesheet = await prisma.timesheet.findFirst({
                             where: {
                                 tenantId: device.tenantId,
                                 employeeId: employee.id,
                                 inAt: {
-                                    gte: dayjs(punchTime).subtract(22, 'hour').toDate(),
+                                    gte: dayjs(punchTime).subtract(lookbackHours, 'hour').toDate(),
                                     lte: punchTime
                                 }
                             },
                             orderBy: { inAt: 'desc' } // Get the most recent one
                         });
+
+                        // If device specifically says OUT and we didn't find one in 22h, 
+                        // try looking back even further (up to 36h) just in case.
+                        if (!timesheet && (inOutMode === '1' || inOutMode === '5')) {
+                            timesheet = await prisma.timesheet.findFirst({
+                                where: {
+                                    tenantId: device.tenantId,
+                                    employeeId: employee.id,
+                                    inAt: {
+                                        gte: dayjs(punchTime).subtract(36, 'hour').toDate(),
+                                        lte: punchTime
+                                    },
+                                    outAt: null
+                                },
+                                orderBy: { inAt: 'desc' }
+                            });
+                        }
 
                         if (timesheet) {
                             // Found a recent timesheet, update its OUT time
@@ -265,8 +286,10 @@ router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
                                 console.log(`[iClock] Ignored duplicate punch for ${userId} (diff: ${diffFromLastMs}ms)`);
                             }
                         } else {
-                            // First punch of the day: Clock in
-                            const firstPunch = { time: punchTime, device_sn: SN, type: 'in' };
+                            // First punch of the day or no recent timesheet found: Clock in
+                            // If the device explicitly says this is an OUT punch, but we found no IN punch,
+                            // we still record it but as an IN punch (or we could ignore it, but recording is safer).
+                            const firstPunch = { time: punchTime, device_sn: SN, type: inOutMode === '1' || inOutMode === '5' ? 'out' : 'in' };
                             const dbDate = dayjs.utc(dateStr).toDate();
                             
                             await prisma.timesheet.create({
@@ -282,7 +305,7 @@ router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
                                     meta: { device_sn: SN, verify_mode: verifyMode, in_out_mode: inOutMode },
                                 },
                             });
-                            console.log(`[iClock] Created new TS for ${userId} at ${dayjs(punchTime).format('HH:mm')}`);
+                            console.log(`[iClock] Created new TS for ${userId} at ${dayjs(punchTime).format('HH:mm')} (Mode: ${inOutMode})`);
                         }
 
                         // Mark log as processed

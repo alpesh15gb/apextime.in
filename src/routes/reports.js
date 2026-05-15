@@ -135,8 +135,21 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
             let dayRec = null;
             const empShift = getEmployeeShiftForDate(emp.id, currentDay, shiftAssignments);
             
-            // Find timesheet for this day robustly using UTC date part comparison
-            const record = timesheets.find(t => t.employeeId === emp.id && dayjs.utc(t.date).format('YYYY-MM-DD') === dayKey);
+            // Find timesheet(s) for this day
+            const dayRecords = timesheets.filter(t => t.employeeId === emp.id && dayjs.utc(t.date).format('YYYY-MM-DD') === dayKey);
+            
+            // Merge multiple records for the same day (pick earliest IN and latest OUT)
+            let record = null;
+            if (dayRecords.length > 1) {
+                record = {
+                    inAt: dayRecords.reduce((min, r) => !min || (r.inAt && r.inAt < min) ? r.inAt : min, null),
+                    outAt: dayRecords.reduce((max, r) => !max || (r.outAt && r.outAt > max) ? r.outAt : max, null),
+                    punches: dayRecords.reduce((acc, r) => [...acc, ...(r.punches || [])], []),
+                    status: dayRecords.some(r => r.status === 'approved') ? 'approved' : dayRecords[0].status
+                };
+            } else if (dayRecords.length === 1) {
+                record = dayRecords[0];
+            }
 
             if (empShift) {
                 shiftName = empShift.shiftName;
