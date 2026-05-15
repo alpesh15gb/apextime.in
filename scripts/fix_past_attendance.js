@@ -2,6 +2,8 @@
  * Script to fix past attendance data by merging duplicate records for the same day.
  * This handles cases where multiple 'In' records were created instead of linking an 'Out' time.
  */
+const { Pool } = require('pg');
+const { PrismaPg } = require('@prisma/adapter-pg');
 const { PrismaClient } = require('@prisma/client');
 const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
@@ -10,7 +12,10 @@ const timezone = require('dayjs/plugin/timezone');
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const prisma = new PrismaClient();
+const connectionString = process.env.DATABASE_URL;
+const pool = new Pool({ connectionString });
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
 const TZ = 'Asia/Kolkata';
 
 async function fixPastData() {
