@@ -13,7 +13,7 @@ async function reprocess() {
     const result = await prisma.deviceLog.updateMany({
         where: {
             punchTime: {
-                gte: new Date('2026-05-10T00:00:00Z')
+                gte: new Date('2026-04-01T00:00:00Z')
             },
             processed: true
         },
