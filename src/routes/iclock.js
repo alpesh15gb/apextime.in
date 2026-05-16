@@ -130,13 +130,21 @@ router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
 
             for (const line of lines) {
                 try {
-                    const parts = line.split('\t');
-                    if (parts.length < 2) continue;
+                    // Support both tab-separated and space-separated data
+                    let parts = line.split('\t');
+                    if (parts.length < 2) {
+                        parts = line.split(/\s+/).filter(p => p.trim());
+                    }
+                    
+                    if (parts.length < 2) {
+                        console.log(`[iClock] Skipping malformed line: ${line}`);
+                        continue;
+                    }
 
                     const userId = parts[0].trim();
-                    const dateTimeStr = parts[1].trim();
-                    const verifyMode = parts[2]?.trim() || '0';
-                    const inOutMode = parts[3]?.trim() || '0';
+                    const dateTimeStr = parts[1] + (parts[1].length < 11 && parts[2] ? ' ' + parts[2] : '');
+                    const verifyMode = parts[3]?.trim() || '0';
+                    const inOutMode = parts[4]?.trim() || '0';
 
                     if (!userId || !dateTimeStr) continue;
 
@@ -263,13 +271,16 @@ router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
                             }
                             if (!Array.isArray(existingPunches)) existingPunches = [];
 
-                            const lastPunchTime = existingPunches.length > 0 
-                                ? dayjs(existingPunches[existingPunches.length - 1].time) 
-                                : dayjs(timesheet.inAt);
+                            const lastPunch = existingPunches[existingPunches.length - 1];
+                            const lastPunchRawTime = lastPunch ? (lastPunch.time?.value || lastPunch.time) : timesheet.inAt;
+                            const lastPunchTime = dayjs(lastPunchRawTime);
 
                             const diffFromLastMs = dayjs(punchTime).diff(lastPunchTime);
                             
-                            if (diffFromLastMs >= 120000) { // 2 minutes gap to avoid duplicates
+                            // If calculation failed for some reason, default to allowing the punch if it's a different time
+                            const isDuplicate = !isNaN(diffFromLastMs) && diffFromLastMs < 120000 && diffFromLastMs >= 0;
+                            
+                            if (!isDuplicate) {
                                 const newPunch = { time: punchTime, device_sn: SN, type: 'auto' };
                                 const updatedPunches = [...existingPunches, newPunch];
                                 
