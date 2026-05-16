@@ -23,10 +23,10 @@ async function checkDeviceLogs() {
         take: 50
     });
 
-    console.log('ID | Punch Time | Processed | Device ID');
-    console.log('---|------------|-----------|----------');
+    console.log('ID | Punch Time (DB) | Raw Data | Processed');
+    console.log('---|-----------------|----------|----------');
     for (const log of logs) {
-        console.log(`${log.id} | ${log.punchTime.toISOString()} | ${log.processed} | ${log.deviceId}`);
+        console.log(`${log.id} | ${log.punchTime.toISOString()} | ${log.rawData} | ${log.processed}`);
     }
 }
 
