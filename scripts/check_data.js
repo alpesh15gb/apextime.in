@@ -20,14 +20,14 @@ async function checkData() {
         }
     });
 
-    console.log('ID | Employee | Date | In | Punches Count | Source');
-    console.log('---|----------|------|----|---------------|-------');
+    console.log('ID | Emp Code | Name | Date | In | Punches | Source');
+    console.log('---|----------|------|------|----|---------|-------');
     for (const ts of timesheets) {
         let punches = ts.punches;
         if (typeof punches === 'string') try { punches = JSON.parse(punches); } catch(e) { punches = []; }
         const punchCount = Array.isArray(punches) ? punches.length : 0;
         
-        console.log(`${ts.id} | ${ts.employee.contact.firstName} | ${ts.date.toISOString().split('T')[0]} | ${ts.inAt ? ts.inAt.toISOString() : '-'} | ${punchCount} | ${ts.source}`);
+        console.log(`${ts.id} | ${ts.employee.employeeCode} | ${ts.employee.contact.firstName} | ${ts.date.toISOString().split('T')[0]} | ${ts.inAt ? ts.inAt.toISOString() : '-'} | ${punchCount} | ${ts.source}`);
         if (punchCount > 1) {
             console.log('   Punches:', JSON.stringify(punches));
         }
