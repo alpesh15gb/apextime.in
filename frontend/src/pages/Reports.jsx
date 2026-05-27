@@ -425,13 +425,13 @@ const PerformanceReport = ({ data, meta }) => {
 
                 return (
                     <div key={emp.id} style={{ marginBottom: 15, pageBreakInside: 'avoid' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10, textAlign: 'center', tableLayout: 'fixed' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 8.5, textAlign: 'center', tableLayout: 'fixed' }}>
                             <thead>
                                 <tr>
-                                    <th style={{ width: 220, border: '1px solid #000', textAlign: 'left', padding: '2px 4px', fontWeight: 'normal' }}>Dep : {emp.department}</th>
-                                    <th style={{ width: 40, border: '1px solid #000' }}></th>
+                                    <th style={{ width: 140, border: '1px solid #000', textAlign: 'left', padding: '1px 3px', fontWeight: 'normal', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Dep : {emp.department}</th>
+                                    <th style={{ width: 32, border: '1px solid #000' }}></th>
                                     {dayKeys.map((k, i) => (
-                                        <th key={k} style={{ border: '1px solid #000', padding: '2px' }}>
+                                        <th key={k} style={{ border: '1px solid #000', padding: '1px' }}>
                                             {i + 1}
                                         </th>
                                     ))}
@@ -440,7 +440,7 @@ const PerformanceReport = ({ data, meta }) => {
                             <tbody>
                                 {/* Row 1 */}
                                 <tr>
-                                    <td style={{ textAlign: 'left', padding: '2px 4px', border: '1px solid #000' }}>Name : {emp.name}</td>
+                                    <td style={{ textAlign: 'left', padding: '1px 3px', border: '1px solid #000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={`Name : ${emp.name}`}>Name : {emp.name}</td>
                                     <td style={{ border: '1px solid #000' }}>IN</td>
                                     {dayKeys.map(k => (
                                         <td key={`in-${k}`} style={{ border: '1px solid #000', background: getBg(emp.days[k]?.status), color: getTextColor(emp.days[k]?.status) }}>{emp.days[k]?.in || '0:0'}</td>
@@ -448,7 +448,7 @@ const PerformanceReport = ({ data, meta }) => {
                                 </tr>
                                 {/* Row 2 */}
                                 <tr>
-                                    <td style={{ textAlign: 'left', padding: '2px 4px', border: '1px solid #000' }}>E.Code : {emp.code}</td>
+                                    <td style={{ textAlign: 'left', padding: '1px 3px', border: '1px solid #000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>E.Code : {emp.code}</td>
                                     <td style={{ border: '1px solid #000' }}>OUT</td>
                                     {dayKeys.map(k => (
                                         <td key={`out-${k}`} style={{ border: '1px solid #000', background: getBg(emp.days[k]?.status), color: getTextColor(emp.days[k]?.status) }}>{emp.days[k]?.out || '0:0'}</td>
@@ -456,7 +456,7 @@ const PerformanceReport = ({ data, meta }) => {
                                 </tr>
                                 {/* Row 3 */}
                                 <tr>
-                                    <td style={{ textAlign: 'left', padding: '2px 4px', border: '1px solid #000' }}>Desig. :{emp.designation}</td>
+                                    <td style={{ textAlign: 'left', padding: '1px 3px', border: '1px solid #000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Desig. :{emp.designation}</td>
                                     <td style={{ border: '1px solid #000' }}>Shift</td>
                                     {dayKeys.map(k => (
                                         <td key={`shift-${k}`} style={{ border: '1px solid #000', background: getBg(emp.days[k]?.status), color: getTextColor(emp.days[k]?.status) }}>{emp.days[k]?.shift || 'OFF'}</td>
@@ -464,7 +464,7 @@ const PerformanceReport = ({ data, meta }) => {
                                 </tr>
                                 {/* Row 4 */}
                                 <tr>
-                                    <td style={{ textAlign: 'left', padding: '2px 4px', border: '1px solid #000' }}>{shiftStartTime}</td>
+                                    <td style={{ textAlign: 'left', padding: '1px 3px', border: '1px solid #000' }}>{shiftStartTime}</td>
                                     <td style={{ border: '1px solid #000' }}>Late</td>
                                     {dayKeys.map(k => (
                                         <td key={`late-${k}`} style={{ border: '1px solid #000', background: getBg(emp.days[k]?.status), color: getTextColor(emp.days[k]?.status) }}>{emp.days[k]?.late || '00:00'}</td>
@@ -472,7 +472,7 @@ const PerformanceReport = ({ data, meta }) => {
                                 </tr>
                                 {/* Row 5 */}
                                 <tr>
-                                    <td style={{ textAlign: 'left', padding: '2px 4px', border: '1px solid #000' }}>Total Working Hrs : {emp.stats?.totalWorkHrs || '0:0'}</td>
+                                    <td style={{ textAlign: 'left', padding: '1px 3px', border: '1px solid #000' }}>Total Working Hrs : {emp.stats?.totalWorkHrs || '0:0'}</td>
                                     <td style={{ border: '1px solid #000' }}>W.Hrs</td>
                                     {dayKeys.map(k => (
                                         <td key={`work-${k}`} style={{ border: '1px solid #000', background: getBg(emp.days[k]?.status), color: getTextColor(emp.days[k]?.status) }}>{emp.days[k]?.workHrs || ''}</td>
@@ -480,7 +480,7 @@ const PerformanceReport = ({ data, meta }) => {
                                 </tr>
                                 {/* Row 6 */}
                                 <tr>
-                                    <td style={{ textAlign: 'left', padding: '2px 4px', border: '1px solid #000' }}>Total OT Hrs : {emp.stats?.totalOtHrs || '0:0'}</td>
+                                    <td style={{ textAlign: 'left', padding: '1px 3px', border: '1px solid #000' }}>Total OT Hrs : {emp.stats?.totalOtHrs || '0:0'}</td>
                                     <td style={{ border: '1px solid #000' }}>OT</td>
                                     {dayKeys.map(k => (
                                         <td key={`ot-${k}`} style={{ border: '1px solid #000', background: getBg(emp.days[k]?.status), color: getTextColor(emp.days[k]?.status) }}>{emp.days[k]?.ot !== '00:00' ? emp.days[k]?.ot : ''}</td>
@@ -488,7 +488,7 @@ const PerformanceReport = ({ data, meta }) => {
                                 </tr>
                                 {/* Row 7 */}
                                 <tr>
-                                    <td style={{ textAlign: 'left', padding: '2px 4px', border: '1px solid #000' }}>Absent : {absent.toFixed(2)}, Present : {present.toFixed(2)}</td>
+                                    <td style={{ textAlign: 'left', padding: '1px 3px', border: '1px solid #000', fontSize: 8 }}>Absent : {absent.toFixed(2)}, Present : {present.toFixed(2)}</td>
                                     <td style={{ border: '1px solid #000' }}>Early</td>
                                     {dayKeys.map(k => (
                                         <td key={`early-${k}`} style={{ border: '1px solid #000', background: getBg(emp.days[k]?.status), color: getTextColor(emp.days[k]?.status) }}>{emp.days[k]?.early || ''}</td>
@@ -496,7 +496,7 @@ const PerformanceReport = ({ data, meta }) => {
                                 </tr>
                                 {/* Row 8 */}
                                 <tr>
-                                    <td style={{ textAlign: 'left', padding: '2px 4px', border: '1px solid #000' }}>Paid Day : {paidDay.toFixed(2)}</td>
+                                    <td style={{ textAlign: 'left', padding: '1px 3px', border: '1px solid #000' }}>Paid Day : {paidDay.toFixed(2)}</td>
                                     <td style={{ border: '1px solid #000' }}></td>
                                     {dayKeys.map(k => (
                                         <td key={`status-${k}`} style={{ border: '1px solid #000', background: getBg(emp.days[k]?.status), color: getTextColor(emp.days[k]?.status) }}>{emp.days[k]?.status || ''}</td>
@@ -504,7 +504,7 @@ const PerformanceReport = ({ data, meta }) => {
                                 </tr>
                                 {/* Row 9 */}
                                 <tr>
-                                    <td colSpan={dayKeys.length + 2} style={{ textAlign: 'left', padding: '4px 4px', border: '1px solid #000' }}>
+                                    <td colSpan={dayKeys.length + 2} style={{ textAlign: 'left', padding: '2px 3px', border: '1px solid #000' }}>
                                         WO : {wo.toFixed(2)}, HLD : {hld.toFixed(2)}, Leave : {leave.toFixed(2)}
                                     </td>
                                 </tr>
