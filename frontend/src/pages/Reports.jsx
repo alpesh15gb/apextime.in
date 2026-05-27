@@ -633,6 +633,73 @@ export default function Reports() {
 
     const exportGridExcel = () => {
         if (!gridData || !gridData.data) return;
+
+        if (reportType === 'performance_report') {
+            const aoa = [];
+            const title = `Monthly Performance Report (${gridData.meta.startDate} to ${gridData.meta.endDate})`;
+            aoa.push([title]);
+            aoa.push([]);
+
+            const dayKeys = Object.keys(gridData.data[0].days).sort();
+            
+            gridData.data.forEach(emp => {
+                const present = parseFloat(emp.stats?.present || 0);
+                const absent = parseFloat(emp.stats?.absent || 0);
+                const wo = parseFloat(emp.stats?.wo || 0);
+                const leave = parseFloat(emp.stats?.leave || 0);
+                const hld = parseFloat(emp.stats?.hld || 0);
+                const paidDay = present + wo + leave + hld;
+
+                let shiftStartTime = '00:00:00';
+                for (let k of dayKeys) {
+                    if (emp.days[k]?.shiftStart) {
+                        shiftStartTime = emp.days[k].shiftStart;
+                        break;
+                    }
+                }
+
+                const headerRow = [`Dep : ${emp.department}`, '', ...dayKeys.map((_, i) => i + 1)];
+                aoa.push(headerRow);
+
+                const row1 = [`Name : ${emp.name}`, 'IN', ...dayKeys.map(k => emp.days[k]?.in || '0:0')];
+                aoa.push(row1);
+
+                const row2 = [`E.Code : ${emp.code}`, 'OUT', ...dayKeys.map(k => emp.days[k]?.out || '0:0')];
+                aoa.push(row2);
+
+                const row3 = [`Desig. :${emp.designation}`, 'Shift', ...dayKeys.map(k => emp.days[k]?.shift || 'OFF')];
+                aoa.push(row3);
+
+                const row4 = [shiftStartTime, 'Late', ...dayKeys.map(k => emp.days[k]?.late || '00:00')];
+                aoa.push(row4);
+
+                const row5 = [`Total Working Hrs : ${emp.stats?.totalWorkHrs || '0:0'}`, 'W.Hrs', ...dayKeys.map(k => emp.days[k]?.workHrs || '')];
+                aoa.push(row5);
+
+                const row6 = [`Total OT Hrs : ${emp.stats?.totalOtHrs || '0:0'}`, 'OT', ...dayKeys.map(k => emp.days[k]?.ot !== '00:00' ? emp.days[k]?.ot : '')];
+                aoa.push(row6);
+
+                const row7 = [`Absent : ${absent.toFixed(2)}, Present : ${present.toFixed(2)}`, 'Early', ...dayKeys.map(k => emp.days[k]?.early || '')];
+                aoa.push(row7);
+
+                const row8 = [`Paid Day : ${paidDay.toFixed(2)}`, '', ...dayKeys.map(k => emp.days[k]?.status || '')];
+                aoa.push(row8);
+
+                const row9 = [`WO : ${wo.toFixed(2)}, HLD : ${hld.toFixed(2)}, Leave : ${leave.toFixed(2)}`, '', ...dayKeys.map(() => '')];
+                aoa.push(row9);
+
+                aoa.push([]);
+            });
+
+            const ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!cols'] = [{ wch: 30 }, { wch: 8 }];
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Performance Report");
+            const deptSuffix = departmentId ? `_${departments.find(d => d.id == departmentId)?.name || departmentId}` : '';
+            XLSX.writeFile(wb, `Performance_Report_${gridData.meta.startDate}${deptSuffix}.xlsx`);
+            return;
+        }
+
         const aoa = [];
         const title = reportType === 'monthly' 
             ? `Monthly Performance Report - ${gridData.meta.monthName} ${gridData.meta.year}`
@@ -820,7 +887,7 @@ export default function Reports() {
 
             <style>{`
 @media print {
-    @page { size: portrait; margin: 5mm; }
+    @page { size: ${reportType === 'performance_report' ? 'landscape' : 'portrait'}; margin: 5mm; }
     html, body, #root, .app-layout, .main-content, .content-area {
         height: auto !important;
         overflow: visible !important;
