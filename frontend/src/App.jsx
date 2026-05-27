@@ -50,6 +50,7 @@ function AppRoutes() {
         <Route path="reports/weekly" element={<Reports />} />
         <Route path="reports/monthly" element={<Reports />} />
         <Route path="reports/apex-monthly" element={<Reports />} />
+        <Route path="reports/performance-report" element={<Reports />} />
         <Route path="compoff" element={<CompOff />} />
         <Route path="tenants" element={<Tenants />} />
       </Route>
