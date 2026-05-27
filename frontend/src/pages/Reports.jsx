@@ -379,6 +379,144 @@ const ApexReportMonthly = ({ data, meta }) => {
     );
 };
 
+const PerformanceReport = ({ data, meta }) => {
+    const { user } = useAuth();
+    const dayKeys = [];
+    const daysInMonth = dayjs(meta.startDate).daysInMonth();
+    const start = dayjs(meta.startDate).startOf('month');
+    for (let i = 0; i < daysInMonth; i++) {
+        dayKeys.push(start.add(i, 'day').format('YYYY-MM-DD'));
+    }
+
+    return (
+        <div className="report-container printable landscape-report" style={{ background: 'white', color: 'black', padding: '10px' }}>
+            <style>{`
+                @media print {
+                    @page { size: landscape; margin: 5mm; }
+                }
+            `}</style>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20, fontSize: 12 }}>
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 'bold' }}>Monthly Performance Report</h2>
+                <div>From : {dayjs(meta.startDate).format('YYYY/MM/DD')} To Date : {dayjs(meta.endDate).format('YYYY/MM/DD')}</div>
+            </div>
+            <div style={{ textAlign: 'right', marginBottom: 10, fontSize: 12 }}>
+                Print Date {dayjs().format('DD/MM/DD')}
+            </div>
+
+            {data.map(emp => {
+                const present = parseFloat(emp.stats?.present || 0);
+                const absent = parseFloat(emp.stats?.absent || 0);
+                const wo = parseFloat(emp.stats?.wo || 0);
+                const leave = parseFloat(emp.stats?.leave || 0);
+                const hld = parseFloat(emp.stats?.hld || 0);
+                const paidDay = present + wo + leave + hld;
+
+                const getBg = (status) => (status === 'WO' || status === 'OFF' ? 'gray' : 'transparent');
+                const getTextColor = (status) => (status === 'WO' || status === 'OFF' ? 'white' : 'black');
+
+                // Get Shift Start from the first available day
+                let shiftStartTime = '00:00:00';
+                for (let k of dayKeys) {
+                    if (emp.days[k]?.shiftStart) {
+                        shiftStartTime = emp.days[k].shiftStart;
+                        break;
+                    }
+                }
+
+                return (
+                    <div key={emp.id} style={{ marginBottom: 15, pageBreakInside: 'avoid' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10, textAlign: 'center', tableLayout: 'fixed' }}>
+                            <thead>
+                                <tr>
+                                    <th style={{ width: 220, border: '1px solid #000', textAlign: 'left', padding: '2px 4px', fontWeight: 'normal' }}>Dep : {emp.department}</th>
+                                    <th style={{ width: 40, border: '1px solid #000' }}></th>
+                                    {dayKeys.map((k, i) => (
+                                        <th key={k} style={{ border: '1px solid #000', padding: '2px' }}>
+                                            {i + 1}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {/* Row 1 */}
+                                <tr>
+                                    <td style={{ textAlign: 'left', padding: '2px 4px', border: '1px solid #000' }}>Name : {emp.name}</td>
+                                    <td style={{ border: '1px solid #000' }}>IN</td>
+                                    {dayKeys.map(k => (
+                                        <td key={`in-${k}`} style={{ border: '1px solid #000', background: getBg(emp.days[k]?.status), color: getTextColor(emp.days[k]?.status) }}>{emp.days[k]?.in || '0:0'}</td>
+                                    ))}
+                                </tr>
+                                {/* Row 2 */}
+                                <tr>
+                                    <td style={{ textAlign: 'left', padding: '2px 4px', border: '1px solid #000' }}>E.Code : {emp.code}</td>
+                                    <td style={{ border: '1px solid #000' }}>OUT</td>
+                                    {dayKeys.map(k => (
+                                        <td key={`out-${k}`} style={{ border: '1px solid #000', background: getBg(emp.days[k]?.status), color: getTextColor(emp.days[k]?.status) }}>{emp.days[k]?.out || '0:0'}</td>
+                                    ))}
+                                </tr>
+                                {/* Row 3 */}
+                                <tr>
+                                    <td style={{ textAlign: 'left', padding: '2px 4px', border: '1px solid #000' }}>Desig. :{emp.designation}</td>
+                                    <td style={{ border: '1px solid #000' }}>Shift</td>
+                                    {dayKeys.map(k => (
+                                        <td key={`shift-${k}`} style={{ border: '1px solid #000', background: getBg(emp.days[k]?.status), color: getTextColor(emp.days[k]?.status) }}>{emp.days[k]?.shift || 'OFF'}</td>
+                                    ))}
+                                </tr>
+                                {/* Row 4 */}
+                                <tr>
+                                    <td style={{ textAlign: 'left', padding: '2px 4px', border: '1px solid #000' }}>{shiftStartTime}</td>
+                                    <td style={{ border: '1px solid #000' }}>Late</td>
+                                    {dayKeys.map(k => (
+                                        <td key={`late-${k}`} style={{ border: '1px solid #000', background: getBg(emp.days[k]?.status), color: getTextColor(emp.days[k]?.status) }}>{emp.days[k]?.late || '00:00'}</td>
+                                    ))}
+                                </tr>
+                                {/* Row 5 */}
+                                <tr>
+                                    <td style={{ textAlign: 'left', padding: '2px 4px', border: '1px solid #000' }}>Total Working Hrs : {emp.stats?.totalWorkHrs || '0:0'}</td>
+                                    <td style={{ border: '1px solid #000' }}>W.Hrs</td>
+                                    {dayKeys.map(k => (
+                                        <td key={`work-${k}`} style={{ border: '1px solid #000', background: getBg(emp.days[k]?.status), color: getTextColor(emp.days[k]?.status) }}>{emp.days[k]?.workHrs || ''}</td>
+                                    ))}
+                                </tr>
+                                {/* Row 6 */}
+                                <tr>
+                                    <td style={{ textAlign: 'left', padding: '2px 4px', border: '1px solid #000' }}>Total OT Hrs : {emp.stats?.totalOtHrs || '0:0'}</td>
+                                    <td style={{ border: '1px solid #000' }}>OT</td>
+                                    {dayKeys.map(k => (
+                                        <td key={`ot-${k}`} style={{ border: '1px solid #000', background: getBg(emp.days[k]?.status), color: getTextColor(emp.days[k]?.status) }}>{emp.days[k]?.ot !== '00:00' ? emp.days[k]?.ot : ''}</td>
+                                    ))}
+                                </tr>
+                                {/* Row 7 */}
+                                <tr>
+                                    <td style={{ textAlign: 'left', padding: '2px 4px', border: '1px solid #000' }}>Absent : {absent.toFixed(2)}, Present : {present.toFixed(2)}</td>
+                                    <td style={{ border: '1px solid #000' }}>Early</td>
+                                    {dayKeys.map(k => (
+                                        <td key={`early-${k}`} style={{ border: '1px solid #000', background: getBg(emp.days[k]?.status), color: getTextColor(emp.days[k]?.status) }}>{emp.days[k]?.early || ''}</td>
+                                    ))}
+                                </tr>
+                                {/* Row 8 */}
+                                <tr>
+                                    <td style={{ textAlign: 'left', padding: '2px 4px', border: '1px solid #000' }}>Paid Day : {paidDay.toFixed(2)}</td>
+                                    <td style={{ border: '1px solid #000' }}></td>
+                                    {dayKeys.map(k => (
+                                        <td key={`status-${k}`} style={{ border: '1px solid #000', background: getBg(emp.days[k]?.status), color: getTextColor(emp.days[k]?.status) }}>{emp.days[k]?.status || ''}</td>
+                                    ))}
+                                </tr>
+                                {/* Row 9 */}
+                                <tr>
+                                    <td colSpan={dayKeys.length + 2} style={{ textAlign: 'left', padding: '4px 4px', border: '1px solid #000' }}>
+                                        WO : {wo.toFixed(2)}, HLD : {hld.toFixed(2)}, Leave : {leave.toFixed(2)}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                );
+            })}
+        </div>
+    );
+};
+
 export default function Reports() {
     const location = useLocation();
     const [activeTab, setActiveTab] = useState('performance');
@@ -389,6 +527,7 @@ export default function Reports() {
         if (location.pathname.includes('/weekly')) return 'weekly';
         if (location.pathname.includes('/monthly')) return 'monthly';
         if (location.pathname.includes('/apex-monthly')) return 'apex_monthly';
+        if (location.pathname.includes('/performance-report')) return 'performance_report';
         return 'monthly';
     };
 
@@ -435,7 +574,7 @@ export default function Reports() {
         let endpoint = '/reports/grid';
         let params = {};
 
-        if (reportType === 'monthly' || reportType === 'apex_monthly') {
+        if (reportType === 'monthly' || reportType === 'apex_monthly' || reportType === 'performance_report') {
             endpoint = '/reports/monthly';
             params = { month, year };
         } else if (reportType === 'daily') {
@@ -574,14 +713,15 @@ export default function Reports() {
 
                         {activeTab === 'performance' ? (
                             <>
-                                <select value={reportType} onChange={e => setReportType(e.target.value)} className="form-input" style={{ width: 150 }}>
+                                <select value={reportType} onChange={e => setReportType(e.target.value)} className="form-input" style={{ width: 170 }}>
                                     <option value="daily">Daily</option>
                                     <option value="weekly">Weekly</option>
                                     <option value="monthly">Monthly</option>
                                     <option value="apex_monthly">Apex Monthly</option>
+                                    <option value="performance_report">Performance Report</option>
                                 </select>
 
-                                {(reportType === 'monthly' || reportType === 'apex_monthly') ? (
+                                {(reportType === 'monthly' || reportType === 'apex_monthly' || reportType === 'performance_report') ? (
                                     <>
                                         <select value={month} onChange={e => setMonth(e.target.value)} className="form-input" style={{ width: 140 }}>
                                             {Array.from({ length: 12 }, (_, i) => (
@@ -633,6 +773,7 @@ export default function Reports() {
                     {reportType === 'weekly' && <WeeklyReport data={gridData.data} meta={gridData.meta} />}
                     {reportType === 'monthly' && <MonthlyReport data={gridData.data} meta={gridData.meta} />}
                     {reportType === 'apex_monthly' && <ApexReportMonthly data={gridData.data} meta={gridData.meta} />}
+                    {reportType === 'performance_report' && <PerformanceReport data={gridData.data} meta={gridData.meta} />}
                 </>
             )}
 
