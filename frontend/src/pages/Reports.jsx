@@ -546,6 +546,13 @@ const MonthlyStatusReport = ({ data, meta }) => {
             <style>{`
                 @media print {
                     @page { size: landscape; margin: 5mm; }
+                    .monthly-status-table {
+                        page-break-inside: auto;
+                    }
+                    .monthly-status-employee-body {
+                        page-break-inside: avoid !important;
+                        break-inside: avoid !important;
+                    }
                 }
                 .monthly-status-table {
                     width: 100%;
@@ -561,7 +568,7 @@ const MonthlyStatusReport = ({ data, meta }) => {
                 .monthly-status-table thead th {
                     border: 1px solid #000;
                     font-weight: bold;
-                    background: #f9f9f9;
+                    background: #eee;
                 }
                 .monthly-status-label-col {
                     width: 70px;
@@ -589,100 +596,105 @@ const MonthlyStatusReport = ({ data, meta }) => {
                 </div>
             </div>
 
-            {/* Days Header Bar - Shown once at the top of the report */}
-            <div style={{ marginBottom: 15 }}>
-                <table className="monthly-status-table" style={{ border: '1px solid #000' }}>
-                    <thead>
-                        <tr>
-                            <th className="monthly-status-label-col" style={{ background: '#eee' }}>Days</th>
-                            {dayKeys.map((k, i) => (
-                                <th key={k} className="monthly-status-day-col" style={{ background: '#eee', fontSize: '8px' }}>
-                                    {i + 1} {getDayAbbrev(k)}
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
-                </table>
-            </div>
+            <table className="monthly-status-table" style={{ border: '1px solid #000' }}>
+                <thead>
+                    <tr>
+                        <th className="monthly-status-label-col">Days</th>
+                        {dayKeys.map((k, i) => (
+                            <th key={k} className="monthly-status-day-col">
+                                {i + 1} {getDayAbbrev(k)}
+                            </th>
+                        ))}
+                    </tr>
+                </thead>
+                
+                {Object.entries(departments).map(([deptName, emps]) => (
+                    <Fragment key={deptName}>
+                        <tbody className="monthly-status-employee-body">
+                            <tr>
+                                <td colSpan={dayKeys.length + 1} style={{ textAlign: 'left', fontWeight: 'bold', fontSize: '11px', background: '#f5f5f5', border: '1px solid #000', padding: '6px' }}>
+                                    Department: &nbsp;&nbsp;&nbsp;&nbsp; {deptName}
+                                </td>
+                            </tr>
+                        </tbody>
 
-            {Object.entries(departments).map(([deptName, emps]) => (
-                <div key={deptName} style={{ marginBottom: 20, pageBreakInside: 'avoid' }}>
-                    <div style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 8, textAlign: 'left' }}>
-                        Department: &nbsp;&nbsp;&nbsp;&nbsp; {deptName}
-                    </div>
+                        {emps.map(emp => (
+                            <tbody key={emp.id} className="monthly-status-employee-body" style={{ border: '1px solid #000' }}>
+                                {/* Employee Header Row */}
+                                <tr>
+                                    <td colSpan={dayKeys.length + 1} style={{ textAlign: 'left', fontWeight: 'bold', fontSize: '10px', background: '#fafafa', border: '1px solid #000', borderBottom: 'none', padding: '5px' }}>
+                                        <div style={{ display: 'flex', gap: 40 }}>
+                                            <div>Emp. Code &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {emp.code}</div>
+                                            <div>Emp. Name: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {emp.name}</div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                
+                                {/* Status Row */}
+                                <tr style={{ borderTop: '1px solid #000' }}>
+                                    <td className="monthly-status-label-col">Status</td>
+                                    {dayKeys.map(k => {
+                                        const day = emp.days[k];
+                                        let status = day?.status || 'A';
+                                        
+                                        // Handle WOP (Weekly Off Present)
+                                        if (day?.shift === 'OFF' && (day?.in || day?.out)) {
+                                            status = 'WOP';
+                                        }
 
-                    {emps.map(emp => {
-                        return (
-                            <div key={emp.id} style={{ marginBottom: 15, border: '1px solid #000', padding: '5px', pageBreakInside: 'avoid' }}>
-                                <div style={{ display: 'flex', gap: 40, fontSize: 10, fontWeight: 'bold', marginBottom: 4, paddingBottom: 4, borderBottom: '1px solid #eee' }}>
-                                    <div>Emp. Code &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {emp.code}</div>
-                                    <div>Emp. Name: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {emp.name}</div>
-                                </div>
+                                        let color = 'black';
+                                        if (status === 'A') color = 'red';
+                                        if (status === 'P') color = 'green';
+                                        if (status === 'WO') color = 'blue';
+                                        if (status === 'WOP') color = 'purple';
 
-                                <table className="monthly-status-table" style={{ border: 'none' }}>
-                                    <tbody>
-                                        {/* Status Row */}
-                                        <tr style={{ borderTop: '1px solid #000' }}>
-                                            <td className="monthly-status-label-col">Status</td>
-                                            {dayKeys.map(k => {
-                                                const day = emp.days[k];
-                                                let status = day?.status || 'A';
-                                                
-                                                // Handle WOP (Weekly Off Present)
-                                                if (day?.shift === 'OFF' && (day?.in || day?.out)) {
-                                                    status = 'WOP';
-                                                }
-
-                                                let color = 'black';
-                                                if (status === 'A') color = 'red';
-                                                if (status === 'P') color = 'green';
-                                                if (status === 'WO') color = 'blue';
-                                                if (status === 'WOP') color = 'purple';
-
-                                                return (
-                                                    <td key={`status-${k}`} style={{ color, fontWeight: 'bold' }}>
-                                                        {status}
-                                                    </td>
-                                                );
-                                            })}
-                                        </tr>
-                                        {/* InTime Row */}
-                                        <tr>
-                                            <td className="monthly-status-label-col">InTime</td>
-                                            {dayKeys.map(k => (
-                                                <td key={`in-${k}`}>
-                                                    {emp.days[k]?.in || ''}
-                                                </td>
-                                            ))}
-                                        </tr>
-                                        {/* OutTime Row */}
-                                        <tr>
-                                            <td className="monthly-status-label-col">OutTime</td>
-                                            {dayKeys.map(k => (
-                                                <td key={`out-${k}`}>
-                                                    {emp.days[k]?.out || ''}
-                                                </td>
-                                            ))}
-                                        </tr>
-                                        {/* Total Work Hours Row */}
-                                        <tr style={{ borderBottom: '1px solid #000' }}>
-                                            <td className="monthly-status-label-col">Total</td>
-                                            {dayKeys.map(k => {
-                                                const workHrs = emp.days[k]?.workHrs;
-                                                return (
-                                                    <td key={`total-${k}`} style={{ fontWeight: '500' }}>
-                                                        {workHrs && workHrs !== '00:00' ? workHrs : '00:00'}
-                                                    </td>
-                                                );
-                                            })}
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        );
-                    })}
-                </div>
-            ))}
+                                        return (
+                                            <td key={`status-${k}`} style={{ color, fontWeight: 'bold' }}>
+                                                {status}
+                                            </td>
+                                        );
+                                    })}
+                                </tr>
+                                {/* InTime Row */}
+                                <tr>
+                                    <td className="monthly-status-label-col">InTime</td>
+                                    {dayKeys.map(k => (
+                                        <td key={`in-${k}`}>
+                                            {emp.days[k]?.in || ''}
+                                        </td>
+                                    ))}
+                                </tr>
+                                {/* OutTime Row */}
+                                <tr>
+                                    <td className="monthly-status-label-col">OutTime</td>
+                                    {dayKeys.map(k => (
+                                        <td key={`out-${k}`}>
+                                            {emp.days[k]?.out || ''}
+                                        </td>
+                                    ))}
+                                </tr>
+                                {/* Total Work Hours Row */}
+                                <tr style={{ borderBottom: '1px solid #000' }}>
+                                    <td className="monthly-status-label-col">Total</td>
+                                    {dayKeys.map(k => {
+                                        const workHrs = emp.days[k]?.workHrs;
+                                        return (
+                                            <td key={`total-${k}`} style={{ fontWeight: '500' }}>
+                                                {workHrs && workHrs !== '00:00' ? workHrs : '00:00'}
+                                            </td>
+                                        );
+                                    })}
+                                </tr>
+                                
+                                {/* Small spacer row for separating employees on screen */}
+                                <tr className="no-print" style={{ height: '8px', border: 'none' }}>
+                                    <td colSpan={dayKeys.length + 1} style={{ border: 'none', background: 'transparent', height: '8px' }}></td>
+                                </tr>
+                            </tbody>
+                        ))}
+                    </Fragment>
+                ))}
+            </table>
 
             <div style={{ marginTop: 20, display: 'flex', justifyContent: 'space-between', fontSize: 10, borderTop: '1px solid #ddd', paddingTop: 8 }} className="print-footer">
                 <div>Generated By: {user?.username || 'essl'}</div>
