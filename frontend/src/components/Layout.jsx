@@ -38,6 +38,7 @@ export default function Layout() {
                 { to: '/reports/daily', icon: <FileText size={14} />, label: 'Daily Report', isSub: true },
                 { to: '/reports/weekly', icon: <FileText size={14} />, label: 'Weekly Report', isSub: true },
                 { to: '/reports/monthly', icon: <FileText size={14} />, label: 'Monthly Report', isSub: true },
+                { to: '/reports/monthly-status', icon: <FileText size={14} />, label: 'Monthly Status', isSub: true },
                 { to: '/reports/apex-monthly', icon: <FileText size={14} />, label: 'Apex Monthly', isSub: true },
                 { to: '/reports/performance-report', icon: <FileText size={14} />, label: 'Performance Report', isSub: true },
             ]

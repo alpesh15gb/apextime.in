@@ -517,6 +517,181 @@ const PerformanceReport = ({ data, meta }) => {
     );
 };
 
+const MonthlyStatusReport = ({ data, meta }) => {
+    const { user } = useAuth();
+    
+    // Group by department
+    const departments = {};
+    data.forEach(emp => {
+        if (!departments[emp.department]) departments[emp.department] = [];
+        departments[emp.department].push(emp);
+    });
+
+    const dayKeys = [];
+    const start = dayjs(meta.startDate);
+    const end = dayjs(meta.endDate);
+    const diff = end.diff(start, 'day') + 1;
+    for (let i = 0; i < diff; i++) {
+        dayKeys.push(start.add(i, 'day').format('YYYY-MM-DD'));
+    }
+
+    const getDayAbbrev = (dateStr) => {
+        const d = dayjs(dateStr).day();
+        const map = ['S', 'M', 'T', 'W', 'Th', 'F', 'St'];
+        return map[d];
+    };
+
+    return (
+        <div className="report-container printable landscape-report" style={{ background: 'white', color: 'black', padding: '15px', fontFamily: 'Arial, sans-serif' }}>
+            <style>{`
+                @media print {
+                    @page { size: landscape; margin: 5mm; }
+                }
+                .monthly-status-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    font-size: 8.5px;
+                    text-align: center;
+                }
+                .monthly-status-table th, .monthly-status-table td {
+                    border: 1px dotted #000;
+                    padding: 3px 2px;
+                    height: 18px;
+                }
+                .monthly-status-table thead th {
+                    border: 1px solid #000;
+                    font-weight: bold;
+                    background: #f9f9f9;
+                }
+                .monthly-status-label-col {
+                    width: 70px;
+                    font-weight: bold;
+                    text-align: left;
+                    padding-left: 5px !important;
+                    border-left: 1px solid #000 !important;
+                }
+                .monthly-status-day-col {
+                    min-width: 25px;
+                }
+                .monthly-status-table td:last-child, .monthly-status-table th:last-child {
+                    border-right: 1px solid #000 !important;
+                }
+            `}</style>
+            
+            {/* Report Header */}
+            <div style={{ textAlign: 'center', marginBottom: 15, position: 'relative' }}>
+                <h2 style={{ margin: '0 0 5px 0', fontSize: 16, fontWeight: 'bold' }}>Monthly Status Report (Basic Work Duration)</h2>
+                <div style={{ fontSize: 11, marginBottom: 15 }}>{dayjs(meta.startDate).format('MMM DD YYYY')} To {dayjs(meta.endDate).format('MMM DD YYYY')}</div>
+                
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, borderBottom: '2px solid #000', paddingBottom: 4 }}>
+                    <div><strong>Company:</strong> {user?.tenant?.name || 'Default'}</div>
+                    <div>Printed On {dayjs().format('MMM DD YYYY HH:mm')}</div>
+                </div>
+            </div>
+
+            {/* Days Header Bar - Shown once at the top of the report */}
+            <div style={{ marginBottom: 15 }}>
+                <table className="monthly-status-table" style={{ border: '1px solid #000' }}>
+                    <thead>
+                        <tr>
+                            <th className="monthly-status-label-col" style={{ background: '#eee' }}>Days</th>
+                            {dayKeys.map((k, i) => (
+                                <th key={k} className="monthly-status-day-col" style={{ background: '#eee', fontSize: '8px' }}>
+                                    {i + 1} {getDayAbbrev(k)}
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+
+            {Object.entries(departments).map(([deptName, emps]) => (
+                <div key={deptName} style={{ marginBottom: 20, pageBreakInside: 'avoid' }}>
+                    <div style={{ fontSize: 11, fontWeight: 'bold', marginBottom: 8, textAlign: 'left' }}>
+                        Department: &nbsp;&nbsp;&nbsp;&nbsp; {deptName}
+                    </div>
+
+                    {emps.map(emp => {
+                        return (
+                            <div key={emp.id} style={{ marginBottom: 15, border: '1px solid #000', padding: '5px', pageBreakInside: 'avoid' }}>
+                                <div style={{ display: 'flex', gap: 40, fontSize: 10, fontWeight: 'bold', marginBottom: 4, paddingBottom: 4, borderBottom: '1px solid #eee' }}>
+                                    <div>Emp. Code &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {emp.code}</div>
+                                    <div>Emp. Name: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {emp.name}</div>
+                                </div>
+
+                                <table className="monthly-status-table" style={{ border: 'none' }}>
+                                    <tbody>
+                                        {/* Status Row */}
+                                        <tr style={{ borderTop: '1px solid #000' }}>
+                                            <td className="monthly-status-label-col">Status</td>
+                                            {dayKeys.map(k => {
+                                                const day = emp.days[k];
+                                                let status = day?.status || 'A';
+                                                
+                                                // Handle WOP (Weekly Off Present)
+                                                if (day?.shift === 'OFF' && (day?.in || day?.out)) {
+                                                    status = 'WOP';
+                                                }
+
+                                                let color = 'black';
+                                                if (status === 'A') color = 'red';
+                                                if (status === 'P') color = 'green';
+                                                if (status === 'WO') color = 'blue';
+                                                if (status === 'WOP') color = 'purple';
+
+                                                return (
+                                                    <td key={`status-${k}`} style={{ color, fontWeight: 'bold' }}>
+                                                        {status}
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+                                        {/* InTime Row */}
+                                        <tr>
+                                            <td className="monthly-status-label-col">InTime</td>
+                                            {dayKeys.map(k => (
+                                                <td key={`in-${k}`}>
+                                                    {emp.days[k]?.in || ''}
+                                                </td>
+                                            ))}
+                                        </tr>
+                                        {/* OutTime Row */}
+                                        <tr>
+                                            <td className="monthly-status-label-col">OutTime</td>
+                                            {dayKeys.map(k => (
+                                                <td key={`out-${k}`}>
+                                                    {emp.days[k]?.out || ''}
+                                                </td>
+                                            ))}
+                                        </tr>
+                                        {/* Total Work Hours Row */}
+                                        <tr style={{ borderBottom: '1px solid #000' }}>
+                                            <td className="monthly-status-label-col">Total</td>
+                                            {dayKeys.map(k => {
+                                                const workHrs = emp.days[k]?.workHrs;
+                                                return (
+                                                    <td key={`total-${k}`} style={{ fontWeight: '500' }}>
+                                                        {workHrs && workHrs !== '00:00' ? workHrs : '00:00'}
+                                                    </td>
+                                                );
+                                            })}
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        );
+                    })}
+                </div>
+            ))}
+
+            <div style={{ marginTop: 20, display: 'flex', justifyContent: 'space-between', fontSize: 10, borderTop: '1px solid #ddd', paddingTop: 8 }} className="print-footer">
+                <div>Generated By: {user?.username || 'essl'}</div>
+                <div>Page No 1</div>
+            </div>
+        </div>
+    );
+};
+
 export default function Reports() {
     const location = useLocation();
     const [activeTab, setActiveTab] = useState('performance');
@@ -525,6 +700,7 @@ export default function Reports() {
     const getInitialReportType = () => {
         if (location.pathname.includes('/daily')) return 'daily';
         if (location.pathname.includes('/weekly')) return 'weekly';
+        if (location.pathname.includes('/monthly-status')) return 'monthly_status';
         if (location.pathname.includes('/monthly')) return 'monthly';
         if (location.pathname.includes('/apex-monthly')) return 'apex_monthly';
         if (location.pathname.includes('/performance-report')) return 'performance_report';
@@ -703,6 +879,8 @@ export default function Reports() {
         const aoa = [];
         const title = reportType === 'monthly' 
             ? `Monthly Performance Report - ${gridData.meta.monthName} ${gridData.meta.year}`
+            : reportType === 'monthly_status'
+            ? `Monthly Status Report (Basic Work Duration) - ${gridData.meta.monthName} ${gridData.meta.year}`
             : `${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Performance Report (${gridData.meta.startDate} to ${gridData.meta.endDate})`;
         
         aoa.push([title]);
@@ -784,11 +962,12 @@ export default function Reports() {
                                     <option value="daily">Daily</option>
                                     <option value="weekly">Weekly</option>
                                     <option value="monthly">Monthly</option>
+                                    <option value="monthly_status">Monthly Status</option>
                                     <option value="apex_monthly">Apex Monthly</option>
                                     <option value="performance_report">Performance Report</option>
                                 </select>
 
-                                {(reportType === 'monthly' || reportType === 'apex_monthly' || reportType === 'performance_report') ? (
+                                {(reportType === 'monthly' || reportType === 'monthly_status' || reportType === 'apex_monthly' || reportType === 'performance_report') ? (
                                     <>
                                         <select value={month} onChange={e => setMonth(e.target.value)} className="form-input" style={{ width: 140 }}>
                                             {Array.from({ length: 12 }, (_, i) => (
@@ -839,6 +1018,7 @@ export default function Reports() {
                     {reportType === 'daily' && <DailyReport data={gridData.data} meta={gridData.meta} />}
                     {reportType === 'weekly' && <WeeklyReport data={gridData.data} meta={gridData.meta} />}
                     {reportType === 'monthly' && <MonthlyReport data={gridData.data} meta={gridData.meta} />}
+                    {reportType === 'monthly_status' && <MonthlyStatusReport data={gridData.data} meta={gridData.meta} />}
                     {reportType === 'apex_monthly' && <ApexReportMonthly data={gridData.data} meta={gridData.meta} />}
                     {reportType === 'performance_report' && <PerformanceReport data={gridData.data} meta={gridData.meta} />}
                 </>
@@ -887,7 +1067,7 @@ export default function Reports() {
 
             <style>{`
 @media print {
-    @page { size: ${reportType === 'performance_report' ? 'landscape' : 'portrait'}; margin: 5mm; }
+    @page { size: ${reportType === 'performance_report' || reportType === 'monthly_status' ? 'landscape' : 'portrait'}; margin: 5mm; }
     html, body, #root, .app-layout, .main-content, .content-area {
         height: auto !important;
         overflow: visible !important;
