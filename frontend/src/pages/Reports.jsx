@@ -750,7 +750,7 @@ export default function Reports() {
         let endpoint = '/reports/grid';
         let params = {};
 
-        if (reportType === 'monthly' || reportType === 'apex_monthly' || reportType === 'performance_report') {
+        if (reportType === 'monthly' || reportType === 'monthly_status' || reportType === 'apex_monthly' || reportType === 'performance_report') {
             endpoint = '/reports/monthly';
             params = { month, year };
         } else if (reportType === 'daily') {
