@@ -1086,7 +1086,7 @@ export default function Reports() {
         display: block !important;
     }
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: white !important; }
-    .printable, .printable * { color: #000 !important; }
+    .printable { color: #000; }
     .no-print, .sidebar, .top-bar { display: none !important; }
     .report-employee-row { break-inside: avoid; border: 1px solid #000 !important; }
     .apex-page { page-break-after: always; height: 100%; box-sizing: border-box; }
