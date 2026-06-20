@@ -18,7 +18,10 @@ export default function WorkShifts() {
     const [shifts, setShifts] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [editItem, setEditItem] = useState(null);
-    const [form, setForm] = useState({ name: '', records: defaultRecords(), isFlexible: false, minHours: 0, lunchDuration: 1, lunchThreshold: 4 });
+    const [form, setForm] = useState({ name: '', records: defaultRecords(), isFlexible: false, minHours: 0, lunchDuration: 1, lunchThreshold: 4,
+        halfDayMins: 240, absentDayMins: 60, halfDayLateMins: 30, halfDayEarlyMins: 30, earlyGraceMins: 0,
+        otFormula: 'total_duration_minus_shift', maxOtHours: 0, markAbsentForLate: false, continuousLateDays: 3, absentDayType: 'full_day',
+        break1Enabled: false, break1Start: '13:00', break1End: '13:30', break2Enabled: false, break2Start: '17:00', break2End: '17:30' });
 
     // Assignment state
     const [showAssignModal, setShowAssignModal] = useState(false);
@@ -34,7 +37,10 @@ export default function WorkShifts() {
         e.preventDefault();
         try {
             if (editItem) await api.put(`/work-shifts/${editItem.uuid}`, form);
-            else await api.post('/work-shifts', form);
+            setForm({ name: '', records: defaultRecords(), isFlexible: false, minHours: 0, lunchDuration: 1, lunchThreshold: 4,
+                halfDayMins: 240, absentDayMins: 60, halfDayLateMins: 30, halfDayEarlyMins: 30, earlyGraceMins: 0,
+                otFormula: 'total_duration_minus_shift', maxOtHours: 0, markAbsentForLate: false, continuousLateDays: 3, absentDayType: 'full_day',
+                break1Enabled: false, break1Start: '13:00', break1End: '13:30', break2Enabled: false, break2Start: '17:00', break2End: '17:30' });
             setShowModal(false);
             setEditItem(null);
             setForm({ name: '', records: defaultRecords(), isFlexible: false, minHours: 0, lunchDuration: 1, lunchThreshold: 4 });
@@ -50,19 +56,29 @@ export default function WorkShifts() {
 
     const openEdit = (shift) => {
         setEditItem(shift);
-        // Ensure all 7 days exist in records
-        const existing = shift.records || [];
-        const records = DAYS.map(day => {
-            const found = existing.find(r => r.day === day);
-            return found || { day, startTime: '09:00', endTime: '18:00', isOvernight: false, isOff: false, graceMins: 0 };
-        });
         setForm({ 
             name: shift.name, 
             records, 
             isFlexible: !!shift.isFlexible, 
             minHours: shift.minHours || 0,
             lunchDuration: shift.lunchDuration || 0,
-            lunchThreshold: shift.lunchThreshold || 0
+            lunchThreshold: shift.lunchThreshold || 0,
+            halfDayMins: shift.halfDayMins || 240,
+            absentDayMins: shift.absentDayMins || 60,
+            halfDayLateMins: shift.halfDayLateMins || 30,
+            halfDayEarlyMins: shift.halfDayEarlyMins || 30,
+            earlyGraceMins: shift.earlyGraceMins || 0,
+            otFormula: shift.otFormula || 'total_duration_minus_shift',
+            maxOtHours: shift.maxOtHours || 0,
+            markAbsentForLate: !!shift.markAbsentForLate,
+            continuousLateDays: shift.continuousLateDays || 3,
+            absentDayType: shift.absentDayType || 'full_day',
+            break1Enabled: !!shift.break1Enabled,
+            break1Start: shift.break1Start || '13:00',
+            break1End: shift.break1End || '13:30',
+            break2Enabled: !!shift.break2Enabled,
+            break2Start: shift.break2Start || '17:00',
+            break2End: shift.break2End || '17:30',
         });
         setShowModal(true);
     };
@@ -136,7 +152,7 @@ export default function WorkShifts() {
         <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                 <h2 style={{ fontSize: '22px', fontWeight: 700 }}>Work Shifts</h2>
-                <button className="btn btn-primary" onClick={() => { setEditItem(null); setForm({ name: '', records: defaultRecords(), isFlexible: false, minHours: 0, lunchDuration: 1, lunchThreshold: 4 }); setShowModal(true); }}>
+                <button className="btn btn-primary" onClick={() => { setEditItem(null); setForm({ name: '', records: defaultRecords(), isFlexible: false, minHours: 0, lunchDuration: 1, lunchThreshold: 4, halfDayMins: 240, absentDayMins: 60, halfDayLateMins: 30, halfDayEarlyMins: 30, earlyGraceMins: 0, otFormula: 'total_duration_minus_shift', maxOtHours: 0, markAbsentForLate: false, continuousLateDays: 3, absentDayType: 'full_day', break1Enabled: false, break1Start: '13:00', break1End: '13:30', break2Enabled: false, break2Start: '17:00', break2End: '17:30' }); setShowModal(true); }}>
                     <Plus size={16} /> Add Shift
                 </button>
             </div>
@@ -238,6 +254,92 @@ export default function WorkShifts() {
                                         <small style={{ fontSize: '10px', color: 'gray' }}>Subtract lunch only if worked > this</small>
                                     </div>
                                     <div style={{ flex: 1 }}></div>
+                                </div>
+                                {/* ── Attendance Rules ── */}
+                                <label className="form-label" style={{ marginBottom: 8, marginTop: 8, fontWeight: 600 }}>Attendance Rules</label>
+                                <div style={{ display: 'flex', gap: '20px', marginBottom: 12, flexWrap: 'wrap' }}>
+                                    <div className="form-group" style={{ flex: 1, minWidth: 140 }}>
+                                        <label className="form-label">Half-Day Threshold (min)</label>
+                                        <input type="number" className="form-input" value={form.halfDayMins} onChange={e => setForm({ ...form, halfDayMins: parseInt(e.target.value) || 240 })} />
+                                        <small style={{ fontSize: '10px', color: 'gray' }}>Below this = half day</small>
+                                    </div>
+                                    <div className="form-group" style={{ flex: 1, minWidth: 140 }}>
+                                        <label className="form-label">Absent Threshold (min)</label>
+                                        <input type="number" className="form-input" value={form.absentDayMins} onChange={e => setForm({ ...form, absentDayMins: parseInt(e.target.value) || 60 })} />
+                                        <small style={{ fontSize: '10px', color: 'gray' }}>Below this = absent</small>
+                                    </div>
+                                    <div className="form-group" style={{ flex: 1, minWidth: 140 }}>
+                                        <label className="form-label">Late → Half-Day (min)</label>
+                                        <input type="number" className="form-input" value={form.halfDayLateMins} onChange={e => setForm({ ...form, halfDayLateMins: parseInt(e.target.value) || 30 })} />
+                                        <small style={{ fontSize: '10px', color: 'gray' }}>Late beyond this = half day</small>
+                                    </div>
+                                    <div className="form-group" style={{ flex: 1, minWidth: 140 }}>
+                                        <label className="form-label">Early → Half-Day (min)</label>
+                                        <input type="number" className="form-input" value={form.halfDayEarlyMins} onChange={e => setForm({ ...form, halfDayEarlyMins: parseInt(e.target.value) || 30 })} />
+                                        <small style={{ fontSize: '10px', color: 'gray' }}>Early beyond this = half day</small>
+                                    </div>
+                                </div>
+
+                                {/* ── OT Rules ── */}
+                                <label className="form-label" style={{ marginBottom: 8, fontWeight: 600 }}>Overtime Rules</label>
+                                <div style={{ display: 'flex', gap: '20px', marginBottom: 12, flexWrap: 'wrap' }}>
+                                    <div className="form-group" style={{ flex: 1, minWidth: 180 }}>
+                                        <label className="form-label">OT Formula</label>
+                                        <select className="form-input" value={form.otFormula} onChange={e => setForm({ ...form, otFormula: e.target.value })}>
+                                            <option value="total_duration_minus_shift">Total Duration - Shift Hours</option>
+                                            <option value="duration_minus_shift">Worked Duration - Shift Hours</option>
+                                            <option value="not_applicable">OT Not Applicable</option>
+                                        </select>
+                                    </div>
+                                    <div className="form-group" style={{ flex: 1, minWidth: 140 }}>
+                                        <label className="form-label">Max OT (hrs)</label>
+                                        <input type="number" step="0.5" className="form-input" value={form.maxOtHours} onChange={e => setForm({ ...form, maxOtHours: parseFloat(e.target.value) || 0 })} />
+                                        <small style={{ fontSize: '10px', color: 'gray' }}>0 = no cap</small>
+                                    </div>
+                                </div>
+
+                                {/* ── Continuous Late Rules ── */}
+                                <div style={{ display: 'flex', gap: '20px', marginBottom: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                                    <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <input type="checkbox" checked={form.markAbsentForLate} onChange={e => setForm({ ...form, markAbsentForLate: e.target.checked })} id="markAbsentForLate" />
+                                        <label htmlFor="markAbsentForLate" style={{ fontSize: 13, cursor: 'pointer' }}>Mark absent after continuous lates</label>
+                                    </div>
+                                    {form.markAbsentForLate && (<>
+                                        <div className="form-group" style={{ minWidth: 120 }}>
+                                            <label className="form-label">After (days)</label>
+                                            <input type="number" className="form-input" value={form.continuousLateDays} onChange={e => setForm({ ...form, continuousLateDays: parseInt(e.target.value) || 3 })} />
+                                        </div>
+                                        <div className="form-group" style={{ minWidth: 120 }}>
+                                            <label className="form-label">Type</label>
+                                            <select className="form-input" value={form.absentDayType} onChange={e => setForm({ ...form, absentDayType: e.target.value })}>
+                                                <option value="full_day">Full Day Absent</option>
+                                                <option value="half_day">Half Day Absent</option>
+                                            </select>
+                                        </div>
+                                    </>)}
+                                </div>
+
+                                {/* ── Break Configuration ── */}
+                                <label className="form-label" style={{ marginBottom: 8, fontWeight: 600 }}>Break Configuration</label>
+                                <div style={{ display: 'flex', gap: '20px', marginBottom: 12, flexWrap: 'wrap' }}>
+                                    <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <input type="checkbox" checked={form.break1Enabled} onChange={e => setForm({ ...form, break1Enabled: e.target.checked })} id="break1" />
+                                        <label htmlFor="break1" style={{ fontSize: 13, cursor: 'pointer' }}>Break 1</label>
+                                    </div>
+                                    {form.break1Enabled && (<>
+                                        <div className="form-group"><input type="time" className="form-input" value={form.break1Start} onChange={e => setForm({ ...form, break1Start: e.target.value })} /></div>
+                                        <span style={{ alignSelf: 'center' }}>to</span>
+                                        <div className="form-group"><input type="time" className="form-input" value={form.break1End} onChange={e => setForm({ ...form, break1End: e.target.value })} /></div>
+                                    </>)}
+                                    <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <input type="checkbox" checked={form.break2Enabled} onChange={e => setForm({ ...form, break2Enabled: e.target.checked })} id="break2" />
+                                        <label htmlFor="break2" style={{ fontSize: 13, cursor: 'pointer' }}>Break 2</label>
+                                    </div>
+                                    {form.break2Enabled && (<>
+                                        <div className="form-group"><input type="time" className="form-input" value={form.break2Start} onChange={e => setForm({ ...form, break2Start: e.target.value })} /></div>
+                                        <span style={{ alignSelf: 'center' }}>to</span>
+                                        <div className="form-group"><input type="time" className="form-input" value={form.break2End} onChange={e => setForm({ ...form, break2End: e.target.value })} /></div>
+                                    </>)}
                                 </div>
 
                                 <label className="form-label" style={{ marginBottom: 8 }}>Day-wise Schedule</label>

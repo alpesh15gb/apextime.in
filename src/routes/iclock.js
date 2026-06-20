@@ -348,6 +348,66 @@ router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
     }
 });
 
+// POST /iclock/DeviceLogsPost — AI device JSON attendance logs (AiFace Orcus)
+router.post(['/DeviceLogsPost', '/DeviceLogsPost.aspx'], async (req, res, next) => {
+    try {
+        // AI devices send JSON: { TableName: 'ATTLOG', Rec: [ { ENROLLNO, ATT_TIME, VerifyCode, SN, ... } ] }
+        const data = Array.isArray(req.body) ? req.body : (req.body.Rec || req.body);
+        
+        if (!data || !Array.isArray(data) || data.length === 0) {
+            return res.json({ Code: 200, Message: 'OK' });
+        }
+
+        let processedCount = 0;
+        for (const record of data) {
+            try {
+                const userId = record.ENROLLNO || record.EmployeeId || '';
+                const dateTimeStr = record.ATT_TIME || record.PunchTime || '';
+                const deviceSn = record.SN || record.DeviceSerial || '';
+                const verifyMode = record.VerifyCode || record.VerifyMode || '0';
+                
+                if (!userId || !dateTimeStr) continue;
+
+                // Find device by serial or use query SN
+                const sn = req.query.SN || deviceSn;
+                const device = await prisma.device.findFirst({
+                    where: { serialNumber: sn }
+                });
+
+                if (!device) {
+                    console.log(`[AI Device] Unknown device: ${sn}`);
+                    continue;
+                }
+
+                // Parse punch time
+                const punchTime = dayjs.tz(dateTimeStr, 'YYYY-MM-DD HH:mm:ss', TZ).toDate();
+
+                // Create device log
+                await prisma.deviceLog.create({
+                    data: {
+                        tenantId: device.tenantId,
+                        deviceId: device.id,
+                        rawData: JSON.stringify(record),
+                        userId,
+                        punchTime,
+                        processed: false,
+                    }
+                });
+                
+                processedCount++;
+            } catch (err) {
+                console.error('[AI Device] Record error:', err);
+            }
+        }
+        
+        console.log(`[AI Device] Processed ${processedCount} records`);
+        res.json({ Code: 200, Message: `Processed ${processedCount} records` });
+    } catch (error) {
+        console.error('[AI Device] Error:', error);
+        res.status(500).json({ Code: 500, Message: error.message });
+    }
+});
+
 // GET /iclock/getrequest — Device polls for pending commands
 // GET /iclock/getrequest — Device polls for pending commands
 router.get(['/getrequest', '/getrequest.aspx'], async (req, res, next) => {

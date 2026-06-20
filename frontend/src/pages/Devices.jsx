@@ -6,14 +6,14 @@ import { Plus, HardDrive, RefreshCw, Wifi, WifiOff, Download, Trash2 } from 'luc
 export default function Devices() {
     const [devices, setDevices] = useState([]);
     const [showModal, setShowModal] = useState(false);
-    const [form, setForm] = useState({ name: '', serialNumber: '', ipAddress: '', type: 'biometric' });
+    const [form, setForm] = useState({ name: '', serialNumber: '', ipAddress: '', type: 'biometric', protocol: 'attlog' });
 
     const loadData = () => api.get('/devices').then(r => setDevices(r.data));
     useEffect(() => { loadData(); }, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        try { await api.post('/devices', form); setShowModal(false); setForm({ name: '', serialNumber: '', ipAddress: '', type: 'biometric' }); loadData(); }
+        try { await api.post('/devices', { ...form, protocol: form.protocol || 'attlog' }); setShowModal(false); setForm({ name: '', serialNumber: '', ipAddress: '', type: 'biometric', protocol: 'attlog' }); loadData(); }
         catch (err) { alert(err.response?.data?.message || 'Failed'); }
     };
 
@@ -63,13 +63,14 @@ export default function Devices() {
 
             <div className="card">
                 <table className="data-table">
-                    <thead><tr><th>Name</th><th>Serial</th><th>IP</th><th>Status</th><th>Last Seen</th><th>Logs</th><th>Actions</th></tr></thead>
+                    <thead><tr><th>Name</th><th>Serial</th><th>IP</th><th>Protocol</th><th>Status</th><th>Last Seen</th><th>Logs</th><th>Actions</th></tr></thead>
                     <tbody>
                         {devices.map(d => (
                             <tr key={d.uuid}>
                                 <td><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><HardDrive size={16} style={{ color: 'var(--primary)' }} /><strong>{d.name}</strong></div></td>
                                 <td style={{ fontFamily: 'monospace', fontSize: '12px' }}>{d.serialNumber || '-'}</td>
                                 <td>{d.ipAddress || '-'}</td>
+                                <td><span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: 10, background: d.protocol === 'json' ? 'var(--primary-bg, #e0e7ff)' : 'var(--bg-secondary, #f3f4f6)', color: d.protocol === 'json' ? 'var(--primary, #4f46e5)' : 'var(--text-muted)' }}>{d.protocol === 'json' ? '🤖 AI (JSON)' : '📟 Non-AI (ATTLOG)'}</span></td>
                                 <td>{d.status === 'active' ? <span className="badge badge-success"><Wifi size={10} /> Active</span> : <span className="badge badge-danger"><WifiOff size={10} /> Offline</span>}</td>
                                 <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{d.lastSeenAt ? dayjs(d.lastSeenAt).format('DD MMM hh:mm A') : 'Never'}</td>
                                 <td>{d._count?.logs || 0}</td>
@@ -100,6 +101,16 @@ export default function Devices() {
                                 <div className="form-row">
                                     <div className="form-group"><label className="form-label">Serial Number</label><input className="form-input" value={form.serialNumber} onChange={e => setForm({ ...form, serialNumber: e.target.value })} placeholder="From ESSL device sticker" /></div>
                                     <div className="form-group"><label className="form-label">IP Address</label><input className="form-input" value={form.ipAddress} onChange={e => setForm({ ...form, ipAddress: e.target.value })} placeholder="e.g. 192.168.1.100" /></div>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Device Protocol *</label>
+                                    <select className="form-input" value={form.protocol} onChange={e => setForm({ ...form, protocol: e.target.value })}>
+                                        <option value="attlog">Non-AI Device (X990, uFace, etc.) - Tab-separated ATTLOG</option>
+                                        <option value="json">AI Device (AiFace Orcus) - JSON format</option>
+                                    </select>
+                                    <small style={{ fontSize: '10px', color: 'gray' }}>
+                                        Non-AI devices use tab-separated format. AI devices (AiFace Orcus) use JSON format to /iclock/DeviceLogsPost
+                                    </small>
                                 </div>
                             </div>
                             <div className="modal-footer">

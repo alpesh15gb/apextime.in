@@ -206,9 +206,28 @@ model HolidayYear {
 
   tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   leaveAllocations LeaveAllocation[]
+  holidays         Holiday[]
 
   @@unique([tenantId, name])
   @@map("holiday_years")
+}
+
+model Holiday {
+  id          Int      @id @default(autoincrement())
+  uuid        String   @unique @default(uuid())
+  tenantId    Int      @map("tenant_id")
+  holidayYearId Int    @map("holiday_year_id")
+  name        String
+  date        DateTime @db.Date
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  holidayYear HolidayYear @relation(fields: [holidayYearId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, holidayYearId, date])
+  @@map("holidays")
 }
 
 // ─────────────────────────────────────────────
@@ -229,6 +248,29 @@ model WorkShift {
   minHours   Float    @default(0) @map("min_hours")
   lunchDuration Float    @default(1.0) @map("lunch_duration")
   lunchThreshold Float    @default(4.0) @map("lunch_threshold")
+  // ESSL-equivalent attendance calculation settings
+  halfDayMins      Int    @default(240)  @map("half_day_mins")       // Below this = half day
+  absentDayMins    Int    @default(60)   @map("absent_day_mins")     // Below this = absent
+  halfDayLateMins  Int    @default(30)   @map("half_day_late_mins")  // Late > this → half day
+  halfDayEarlyMins Int    @default(30)   @map("half_day_early_mins") // Early > this → half day
+  earlyGraceMins   Int    @default(0)    @map("early_grace_mins")    // Early going grace period
+  otFormula        String @default("total_duration_minus_shift") @map("ot_formula")
+  maxOtHours       Float  @default(0)    @map("max_ot_hours")        // 0 = no cap
+  markAbsentForLate Boolean @default(false) @map("mark_absent_for_late")
+  continuousLateDays Int  @default(3)    @map("continuous_late_days")
+  absentDayType    String @default("full_day") @map("absent_day_type") // full_day or half_day
+  // Break configuration (ESSL Break1/Break2)
+  break1Enabled    Boolean @default(false) @map("break1_enabled")
+  break1Start      String  @default("13:00") @map("break1_start")
+  break1End        String  @default("13:30") @map("break1_end")
+  break2Enabled    Boolean @default(false) @map("break2_enabled")
+  break2Start      String  @default("17:00") @map("break2_start")
+  break2End        String  @default("17:30") @map("break2_end")
+  // ESSL punch window configuration
+  punchBeginDuration Int    @default(0)    @map("punch_begin_duration")  // Minutes before shift start to allow punches
+  punchEndDuration   Int    @default(0)    @map("punch_end_duration")    // Minutes after shift end to allow punches
+  considerEarlyPunch Boolean @default(true) @map("consider_early_punch") // Count work before shift start in duration/OT
+  considerLatePunch  Boolean @default(true) @map("consider_late_punch")  // Count work after shift end in duration/OT
   status     String   @default("active")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
@@ -434,6 +476,7 @@ model Device {
   serialNumber String?   @map("serial_number")
   ipAddress    String?   @map("ip_address")
   type         String    @default("biometric") // biometric, card, face
+  protocol     String    @default("attlog") // attlog (Non-AI), json (AI)
   token        String?   @unique
   lastSeenAt   DateTime? @map("last_seen_at")
   status       String    @default("active") // active, inactive, offline

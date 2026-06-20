@@ -34,7 +34,7 @@ const DailyReport = ({ data, meta }) => {
     const stats = { present: 0, in: 0, absent: 0, leave: 0 };
     data.forEach(emp => {
         const day = emp.days[meta.startDate];
-        if (day?.status === 'P') stats.present++;
+        if (day?.status === 'P' || day?.status === 'PH') stats.present++;
         if (day?.in) stats.in++;
         if (day?.status === 'A') stats.absent++;
         if (day?.status === 'L' || day?.status === 'OL') stats.leave++;
@@ -72,7 +72,17 @@ const DailyReport = ({ data, meta }) => {
                         <th style={{ border: '1px solid #000', padding: 4 }}>Early Dept.</th>
                         <th style={{ border: '1px solid #000', padding: 4 }}>Work Hrs.</th>
                         <th style={{ border: '1px solid #000', padding: 4 }}>OT</th>
-                        <th style={{ border: '1px solid #000', padding: 4 }}>Status</th>
+                        <th style={{ border: '1px solid #000', padding: 4 }}>Loss Hrs.</th>
+                        <th style={{ border: '1px solid #000', padding: 4 }}>In Duration</th>
+                        <th style={{ border: '1px solid #000', padding: 4 }}>Out Duration</th>
+                        <th style={{ border: '1px solid #000', padding: 4 }}>Shift Duration</th>
+                        <th style={{ border: '1px solid #000', padding: 4 }}>Status Code</th>
+                        <th style={{ border: '1px solid #000', padding: 4 }}>In Device</th>
+                        <th style={{ border: '1px solid #000', padding: 4 }}>Out Device</th>
+                        <th style={{ border: '1px solid #000', padding: 4 }}>Last Punch</th>
+                        <th style={{ border: '1px solid #000', padding: 4 }}>Direction</th>
+                        <th style={{ border: '1px solid #000', padding: 4 }}>WOP</th>
+                        <th style={{ border: '1px solid #000', padding: 4 }}>HP</th>
                         <th style={{ border: '1px solid #000', padding: 4 }}>Remark</th>
                     </tr>
                 </thead>
@@ -97,8 +107,21 @@ const DailyReport = ({ data, meta }) => {
                                         <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day?.early || ''}</td>
                                         <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day?.workHrs || ''}</td>
                                         <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day?.ot !== '00:00' ? day?.ot : ''}</td>
-                                        <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center', fontWeight: 'bold', color: day?.status === 'A' ? 'red' : 'inherit' }}>{day?.status || ''}</td>
-                                        <td style={{ border: '1px solid #000', padding: 4 }}></td>
+                                        <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center', color: (day?.lossOfHours && day.lossOfHours !== '00:00') ? '#e67e22' : 'inherit' }}>{day?.lossOfHours && day.lossOfHours !== '00:00' ? day.lossOfHours : ''}</td>
+                                        <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day?.InDuration && day.InDuration !== '00:00' ? day.InDuration : ''}</td>
+                                        <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day?.OutDuration && day.OutDuration !== '00:00' ? day.OutDuration : ''}</td>
+                                        <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day?.ShiftDuration && day.ShiftDuration !== '00:00' ? day.ShiftDuration : ''}</td>
+                                        <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center', fontWeight: 'bold', color: day?.StatusCode === 0 ? 'red' : day?.StatusCode === 3 ? 'blue' : day?.StatusCode === 4 ? 'purple' : day?.StatusCode === 5 ? 'orange' : 'inherit' }}>{day?.StatusCode || ''}</td>
+                                        <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day?.InDevice || ''}</td>
+                                        <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day?.OutDevice || ''}</td>
+                                        <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day?.LastPunch || ''}</td>
+                                        <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day?.Direction || ''}</td>
+                                        <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day?.WeeklyOffPresent || ''}</td>
+                                        <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{day?.HolidayPresent || ''}</td>
+                                        <td style={{ border: '1px solid #000', padding: 4 }}>
+                                            {day?.LeaveType ? `${day.LeaveType} (${day.LeaveDuration})` : ''}
+                                            {day?.IsOnLeave && !day?.LeaveType ? 'On Leave' : ''}
+                                        </td>
                                     </tr>
                                 );
                             })}
@@ -160,6 +183,7 @@ const MonthlyReport = ({ data, meta }) => {
                                         content = day.status;
                                         if (content === 'A') color = 'red';
                                         if (content === 'P') color = 'green';
+                                        if (content === 'PH') color = '#e67e22';
                                         if (content === 'WO') color = 'blue';
                                     }
                                     return (
@@ -238,6 +262,7 @@ const WeeklyReport = ({ data, meta }) => {
                                                     content = day?.status;
                                                     if (content === 'A') style.color = 'red';
                                                     if (content === 'P') style.color = 'green';
+                                                    if (content === 'PH') style.color = '#e67e22';
                                                     if (content === 'WO') style.color = 'blue';
                                                     style.fontWeight = 'bold';
                                                 }
@@ -278,6 +303,7 @@ const ApexReportMonthly = ({ data, meta }) => {
                     gross: sumDurations(dayKeys.map(k => emp.days[k]?.workHrs)),
                     extra: sumDurations(dayKeys.map(k => emp.days[k]?.ot)),
                     less: sumDurations(dayKeys.map(k => emp.days[k]?.early)),
+                    lossOfHours: sumDurations(dayKeys.map(k => emp.days[k]?.lossOfHours)),
                     net: '00:00'
                 };
 
@@ -329,6 +355,7 @@ const ApexReportMonthly = ({ data, meta }) => {
                                     <th style={{ textAlign: 'center', padding: '2px' }}>Last OUT</th>
                                     <th style={{ textAlign: 'center', padding: '2px', fontWeight: 'bold' }}>Gross</th>
                                     <th style={{ textAlign: 'center', padding: '2px', fontWeight: 'bold' }}>Work Hours</th>
+                                    <th style={{ textAlign: 'center', padding: '2px' }}>Loss Hrs</th>
                                     <th style={{ textAlign: 'center', padding: '2px' }}>Overtime</th>
                                     <th style={{ textAlign: 'center', padding: '2px' }}>Less Hrs</th>
                                 </tr>
@@ -356,6 +383,7 @@ const ApexReportMonthly = ({ data, meta }) => {
                                             <td style={{ textAlign: 'center', padding: '2px' }}>{day?.out || ''}</td>
                                             <td style={{ textAlign: 'center', padding: '2px', fontWeight: 'bold' }}>{displayGross !== '00:00' ? displayGross : ''}</td>
                                             <td style={{ textAlign: 'center', padding: '2px', fontWeight: 'bold' }}>{day?.workHrs !== '00:00' ? day?.workHrs : ''}</td>
+                                            <td style={{ textAlign: 'center', padding: '2px', color: (day?.lossOfHours && day.lossOfHours !== '00:00') ? '#e67e22' : 'inherit' }}>{day?.lossOfHours && day.lossOfHours !== '00:00' ? day.lossOfHours : ''}</td>
                                             <td style={{ textAlign: 'center', padding: '2px' }}>{day?.ot !== '00:00' ? day?.ot : ''}</td>
                                             <td style={{ textAlign: 'center', padding: '2px' }}>{day?.early !== '00:00' ? day?.early : ''}</td>
                                         </tr>
@@ -367,6 +395,7 @@ const ApexReportMonthly = ({ data, meta }) => {
                                     <td colSpan={4} style={{ textAlign: 'right', padding: '4px' }}>Total</td>
                                     <td style={{ textAlign: 'center' }}>{totals.gross}</td>
                                     <td style={{ textAlign: 'center' }}>{totals.net}</td>
+                                    <td style={{ textAlign: 'center', color: totals.lossOfHours !== '00:00' ? '#e67e22' : 'inherit' }}>{totals.lossOfHours}</td>
                                     <td style={{ textAlign: 'center' }}>{totals.extra}</td>
                                     <td style={{ textAlign: 'center' }}>{totals.less}</td>
                                 </tr>
@@ -645,8 +674,10 @@ const MonthlyStatusReport = ({ data, meta }) => {
                                         let color = 'black';
                                         if (status === 'A') color = 'red';
                                         if (status === 'P') color = 'green';
+                                        if (status === 'PH') color = '#e67e22';
                                         if (status === 'WO') color = 'blue';
                                         if (status === 'WOP') color = 'purple';
+                                        if (day?.missedOut) color = '#cc8400';
 
                                         return (
                                             <td key={`status-${k}`} style={{ color, fontWeight: 'bold' }}>
