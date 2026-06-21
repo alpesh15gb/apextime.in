@@ -52,6 +52,26 @@ const getEmployeeShiftForDate = (empId, dateObj, shiftAssignments) => {
                 minHours: assign.shift.minHours,
                 lunchDuration: assign.shift.lunchDuration,
                 lunchThreshold: assign.shift.lunchThreshold,
+                halfDayMins: assign.shift.halfDayMins,
+                absentDayMins: assign.shift.absentDayMins,
+                halfDayLateMins: assign.shift.halfDayLateMins,
+                halfDayEarlyMins: assign.shift.halfDayEarlyMins,
+                earlyGraceMins: assign.shift.earlyGraceMins,
+                otFormula: assign.shift.otFormula,
+                maxOtHours: assign.shift.maxOtHours,
+                markAbsentForLate: assign.shift.markAbsentForLate,
+                continuousLateDays: assign.shift.continuousLateDays,
+                absentDayType: assign.shift.absentDayType,
+                break1Enabled: assign.shift.break1Enabled,
+                break1Start: assign.shift.break1Start,
+                break1End: assign.shift.break1End,
+                break2Enabled: assign.shift.break2Enabled,
+                break2Start: assign.shift.break2Start,
+                break2End: assign.shift.break2End,
+                punchBeginDuration: assign.shift.punchBeginDuration,
+                punchEndDuration: assign.shift.punchEndDuration,
+                considerEarlyPunch: assign.shift.considerEarlyPunch,
+                considerLatePunch: assign.shift.considerLatePunch,
             };
         }
     }
@@ -650,32 +670,52 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                 Direction: direction,
                 WeeklyOffPresent: weeklyOffPresent,
                 HolidayPresent: holidayPresent,
-                PunchCount: punchCount
+                PunchCount: punchCount,
+                shiftPolicy: empShift ? {
+                    isFlexible: empShift.isFlexible,
+                    markAbsentForLate: empShift.markAbsentForLate,
+                    continuousLateDays: empShift.continuousLateDays,
+                    absentDayType: empShift.absentDayType
+                } : null
             };
         }
         // ── ESSL-equivalent: Continuous Late → Absent ──
-        if (empShift && !empShift.isFlexible) {
-            const continuousLateDays2 = empShift.continuousLateDays || 3;
-            const absentDayType2 = empShift.absentDayType || 'full_day';
-            if (empShift.markAbsentForLate && continuousLateDays2 > 0) {
-                let consecutiveLates = 0;
-                const sortedDays = Object.keys(rowData.days).sort();
-                for (const dk of sortedDays) {
-                    const d = rowData.days[dk];
-                    if (d.status === 'P' && d.late && d.late !== '00:00') {
-                        consecutiveLates++;
-                        if (consecutiveLates >= continuousLateDays2) {
-                            d.status = absentDayType2 === 'half_day' ? 'PH' : 'A';
-                            if (d.status === 'A') {
-                                rowData.stats.present -= 1;
-                                rowData.stats.absent += 1;
-                            }
-                        }
-                    } else if (d.status !== 'WO' && d.status !== 'L') {
-                        consecutiveLates = 0;
+        let consecutiveLates = 0;
+        const sortedDays = Object.keys(rowData.days).sort();
+        for (const dk of sortedDays) {
+            const d = rowData.days[dk];
+            const policy = d.shiftPolicy;
+
+            if (!policy || policy.isFlexible || !policy.markAbsentForLate) {
+                if (d.status !== 'WO' && d.status !== 'L') consecutiveLates = 0;
+                delete d.shiftPolicy;
+                continue;
+            }
+
+            const continuousLateDays2 = policy.continuousLateDays || 3;
+            const absentDayType2 = policy.absentDayType || 'full_day';
+            if (d.status === 'P' && d.late && d.late !== '00:00') {
+                consecutiveLates++;
+                if (continuousLateDays2 > 0 && consecutiveLates >= continuousLateDays2) {
+                    d.status = absentDayType2 === 'half_day' ? 'PH' : 'A';
+                    d.DayStatus = d.status;
+                    if (d.status === 'A') {
+                        rowData.stats.present -= 1;
+                        rowData.stats.absent += 1;
+                        d.Present = 0;
+                        d.Absent = 1;
+                        d.StatusCode = 0;
+                    } else {
+                        if (d.Present === 1) rowData.stats.present -= 0.5;
+                        d.Present = 0.5;
+                        d.Absent = 0;
+                        d.StatusCode = 2;
                     }
                 }
+            } else if (d.status !== 'WO' && d.status !== 'L') {
+                consecutiveLates = 0;
             }
+            delete d.shiftPolicy;
         }
 
         rowData.stats.totalWorkHrs = formatDuration(rowData.stats.totalWorkMs);
