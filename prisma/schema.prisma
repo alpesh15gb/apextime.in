@@ -31,6 +31,7 @@ model Tenant {
   employees          Employee[]
   contacts           Contact[]
   holidayYears       HolidayYear[]
+  holidays           Holiday[]
   workShifts         WorkShift[]
   timesheets         Timesheet[]
   attendanceTypes    AttendanceType[]
@@ -227,6 +228,7 @@ model Holiday {
   holidayYear HolidayYear @relation(fields: [holidayYearId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, holidayYearId, date])
+  @@index([tenantId, date])
   @@map("holidays")
 }
 
