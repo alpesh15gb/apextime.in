@@ -191,7 +191,7 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
             department: emp.department?.name || '-',
             days: {},
             stats: {
-                present: 0, absent: 0, wo: 0, leave: 0,
+                present: 0, absent: 0, wo: 0, leave: 0, hld: 0,
                 totalWorkMs: 0, totalOtMs: 0, totalLateMs: 0,
             }
         };
@@ -643,7 +643,7 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
             else if (dayStatus === 'A') rowData.stats.absent++;
             else if (dayStatus === 'WO') rowData.stats.wo++;
             else if (dayStatus === 'L') rowData.stats.leave++;
-            else if (dayStatus === 'H' || dayStatus.substring(0, 1) === 'H') rowData.stats.wo += 0; // holidays separately
+            else if (dayStatus === 'H' || dayStatus.startsWith('H')) rowData.stats.hld++; // worked or not on holiday
             rowData.stats.totalOtMs += otMs;
             rowData.stats.totalWorkMs += workMs; // was missing → Work Hours Summary always 00:00
             rowData.stats.totalLossOfHoursMs = (rowData.stats.totalLossOfHoursMs || 0) + lossOfHoursMs;
@@ -654,7 +654,8 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                 dayLabel: currentDay.date(),
                 
                 // Core fields (existing)
-                in: inTime, out: outTime, 
+                in: inTime, out: outTime,
+                workHrs: formatDuration(workMs), // per-day work hours (frontend reads day.workHrs)
                 shift: shiftName,
                 shiftStart: dayRec?.startTime || '',
                 shiftEnd: dayRec?.endTime || '',
