@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const prisma = require('../lib/prisma');
 const { requireRole } = require('../middleware/auth');
+const time = require('../lib/time');
 
 // ── Leave Types ────────────────────────────
 router.get('/types', async (req, res, next) => {
@@ -145,8 +146,9 @@ router.post('/apply', async (req, res, next) => {
             return res.status(400).json({ error: 'No employee profile linked' });
         }
 
-        const start = new Date(startDate);
-        const end = new Date(endDate);
+        // @db.Date columns: store the calendar day at UTC midnight (IST calendar day).
+        const start = time.utcDate(startDate);
+        const end = time.utcDate(endDate);
         const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
 
         // Check balance

@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const prisma = require('../lib/prisma');
 const { requireRole } = require('../middleware/auth');
-const dayjs = require('dayjs');
+const time = require('../lib/time');
 
 // ─── COMP-OFF CRUD ────────────────────────────
 
@@ -29,7 +29,7 @@ router.get('/', async (req, res, next) => {
             employeeId: e.employeeId,
             employeeName: `${e.employee.contact.firstName} ${e.employee.contact.lastName || ''}`.trim(),
             employeeCode: e.employee.employeeCode,
-            date: dayjs(e.date).format('DD/MM/YYYY'),
+            date: time.dayUTC(e.date).format('DD/MM/YYYY'),
             dateRaw: e.date,
             hours: e.hours,
             days: e.days,
@@ -52,7 +52,7 @@ router.post('/', requireRole('admin', 'super_admin'), async (req, res, next) => 
             data: {
                 tenantId: req.tenantId,
                 employeeId: parseInt(employeeId),
-                date: new Date(date),
+                date: time.utcDate(date),
                 hours: parseFloat(hours),
                 days,
                 reason,
@@ -116,7 +116,7 @@ router.get('/permissions', async (req, res, next) => {
             uuid: e.uuid,
             employeeId: e.employeeId,
             employeeName: `${e.employee.contact.firstName} ${e.employee.contact.lastName || ''}`.trim(),
-            date: dayjs(e.date).format('DD/MM/YYYY'),
+            date: time.dayUTC(e.date).format('DD/MM/YYYY'),
             dateRaw: e.date,
             type: e.type,
             hours: e.hours,
@@ -138,7 +138,7 @@ router.post('/permissions', requireRole('admin', 'super_admin'), async (req, res
             data: {
                 tenantId: req.tenantId,
                 employeeId: parseInt(employeeId),
-                date: new Date(date),
+                date: time.utcDate(date),
                 type,
                 hours: parseFloat(hours),
                 days,
@@ -482,14 +482,14 @@ function calculateSummary({
 // GET /api/compoff/details?month=&year=&departmentId=
 router.get('/details', async (req, res, next) => {
     try {
-        const m = parseInt(req.query.month) || (dayjs().month() + 1);
-        const y = parseInt(req.query.year) || dayjs().year();
+        const m = parseInt(req.query.month) || (time.now().month() + 1);
+        const y = parseInt(req.query.year) || time.now().year();
         const deptId = req.query.departmentId ? parseInt(req.query.departmentId) : null;
 
         // Use UTC midnight so Prisma sends the correct date string to Postgres (@db.Date)
         // Without this, dayjs startOf('month') in IST produces Feb 28T18:30Z for March,
         // causing Feb 28 timesheet rows to bleed into the next month's query.
-        const daysInMonth = dayjs(`${y}-${String(m).padStart(2, '0')}-01`).daysInMonth();
+        const daysInMonth = time.dayUTC(`${y}-${String(m).padStart(2, '0')}-01`).daysInMonth();
         const startOfMonth = new Date(Date.UTC(y, m - 1, 1));
         const endOfMonth = new Date(Date.UTC(y, m - 1, daysInMonth, 23, 59, 59, 999));
 
@@ -533,8 +533,8 @@ router.get('/details', async (req, res, next) => {
         for (const a of rawAssignments) {
             if (!shiftAssignments[a.employeeId]) shiftAssignments[a.employeeId] = [];
             shiftAssignments[a.employeeId].push({
-                startMs: dayjs(a.startDate).startOf('day').valueOf(),
-                endMs: dayjs(a.endDate).endOf('day').valueOf(),
+                startMs: time.dayUTC(a.startDate).valueOf(),
+                endMs: time.dayUTC(a.endDate).endOf('day').valueOf(),
                 shift: a.workShift,
             });
         }
@@ -581,19 +581,19 @@ router.get('/details', async (req, res, next) => {
             // Late check-ins
             const lateCheckIns = et.filter(t => {
                 if (!t.inAt) return false;
-                const empShift = getEmployeeShiftForDate(emp.id, dayjs(t.date), shiftAssignments);
+                const empShift = getEmployeeShiftForDate(emp.id, time.dayUTC(t.date), shiftAssignments);
                 if (empShift && empShift.dayRecord && !empShift.dayRecord.isOff) {
                     const shiftStartMins = timeToMinutes(empShift.dayRecord.startTime);
                     const graceMins = empShift.dayRecord.graceMins || 0;
                     if (shiftStartMins !== null) {
-                        const punchInMins = dayjs(t.inAt).hour() * 60 + dayjs(t.inAt).minute();
+                        const punchInMins = time.tz(t.inAt).hour() * 60 + time.tz(t.inAt).minute();
                         const allowedStart = shiftStartMins + graceMins;
                         return punchInMins > allowedStart;
                     }
                 }
                 // Fallback to strict 9:15 AM
-                const h = dayjs(t.inAt).hour();
-                const min = dayjs(t.inAt).minute();
+                const h = time.tz(t.inAt).hour();
+                const min = time.tz(t.inAt).minute();
                 return h > 9 || (h === 9 && min > 15);
             });
 
@@ -621,7 +621,7 @@ router.get('/details', async (req, res, next) => {
 
                 compOff: {
                     entries: ec.map(c => ({
-                        date: dayjs(c.date).format('DD/MM/YYYY'),
+                        date: time.dayUTC(c.date).format('DD/MM/YYYY'),
                         days: c.days,
                         hours: c.hours,
                         reason: c.reason,
@@ -636,8 +636,8 @@ router.get('/details', async (req, res, next) => {
 
                 clAvailed: {
                     entries: clLeaves.map(l => ({
-                        startDate: dayjs(l.startDate).format('DD/MM/YYYY'),
-                        endDate: dayjs(l.endDate).format('DD/MM/YYYY'),
+                        startDate: time.dayUTC(l.startDate).format('DD/MM/YYYY'),
+                        endDate: time.dayUTC(l.endDate).format('DD/MM/YYYY'),
                         days: l.days,
                     })),
                     totalDays: clAvailed,
@@ -646,12 +646,12 @@ router.get('/details', async (req, res, next) => {
                 lateCheckIn: {
                     count: lateCheckIns.length,
                     days: lateCheckInToDays(lateCheckIns.length), // 3 lates = 1 day
-                    dates: lateCheckIns.map(t => dayjs(t.date).format('DD/MM/YYYY')),
+                    dates: lateCheckIns.map(t => time.dayUTC(t.date).format('DD/MM/YYYY')),
                 },
 
                 permissions: {
                     entries: ep.map(p => ({
-                        date: dayjs(p.date).format('DD/MM/YYYY'),
+                        date: time.dayUTC(p.date).format('DD/MM/YYYY'),
                         type: p.type,
                         hours: p.hours,
                         days: p.days,
@@ -665,8 +665,8 @@ router.get('/details', async (req, res, next) => {
 
                 slAvailed: {
                     entries: slLeaves.map(l => ({
-                        startDate: dayjs(l.startDate).format('DD/MM/YYYY'),
-                        endDate: dayjs(l.endDate).format('DD/MM/YYYY'),
+                        startDate: time.dayUTC(l.startDate).format('DD/MM/YYYY'),
+                        endDate: time.dayUTC(l.endDate).format('DD/MM/YYYY'),
                         days: l.days,
                     })),
                     totalDays: slAvailed,
@@ -677,8 +677,8 @@ router.get('/details', async (req, res, next) => {
                     credited: elCredited,
                     utilised: elUtilised,
                     entries: elLeaves.map(l => ({
-                        startDate: dayjs(l.startDate).format('DD/MM/YYYY'),
-                        endDate: dayjs(l.endDate).format('DD/MM/YYYY'),
+                        startDate: time.dayUTC(l.startDate).format('DD/MM/YYYY'),
+                        endDate: time.dayUTC(l.endDate).format('DD/MM/YYYY'),
                         days: l.days,
                     })),
                 },
@@ -704,11 +704,11 @@ router.get('/details', async (req, res, next) => {
 // GET /api/compoff/summary?month=&year=&departmentId=
 router.get('/summary', async (req, res, next) => {
     try {
-        const m = parseInt(req.query.month) || (dayjs().month() + 1);
-        const y = parseInt(req.query.year) || dayjs().year();
+        const m = parseInt(req.query.month) || (time.now().month() + 1);
+        const y = parseInt(req.query.year) || time.now().year();
         const deptId = req.query.departmentId ? parseInt(req.query.departmentId) : null;
 
-        const daysInMonthN = dayjs(`${y}-${String(m).padStart(2, '0')}-01`).daysInMonth();
+        const daysInMonthN = time.dayUTC(`${y}-${String(m).padStart(2, '0')}-01`).daysInMonth();
         const startOfMonth = new Date(Date.UTC(y, m - 1, 1));
         const endOfMonth = new Date(Date.UTC(y, m - 1, daysInMonthN, 23, 59, 59, 999));
 
@@ -753,8 +753,8 @@ router.get('/summary', async (req, res, next) => {
         for (const a of rawAssignments) {
             if (!shiftAssignments[a.employeeId]) shiftAssignments[a.employeeId] = [];
             shiftAssignments[a.employeeId].push({
-                startMs: dayjs(a.startDate).startOf('day').valueOf(),
-                endMs: dayjs(a.endDate).endOf('day').valueOf(),
+                startMs: time.dayUTC(a.startDate).valueOf(),
+                endMs: time.dayUTC(a.endDate).endOf('day').valueOf(),
                 shift: a.workShift,
             });
         }
@@ -802,18 +802,18 @@ router.get('/summary', async (req, res, next) => {
             // Late check-ins
             const lateCheckInCount = et.filter(t => {
                 if (!t.inAt) return false;
-                const empShift = getEmployeeShiftForDate(emp.id, dayjs(t.date), shiftAssignments);
+                const empShift = getEmployeeShiftForDate(emp.id, time.dayUTC(t.date), shiftAssignments);
                 if (empShift && empShift.dayRecord && !empShift.dayRecord.isOff) {
                     const shiftStartMins = timeToMinutes(empShift.dayRecord.startTime);
                     const graceMins = empShift.dayRecord.graceMins || 0;
                     if (shiftStartMins !== null) {
-                        const punchInMins = dayjs(t.inAt).hour() * 60 + dayjs(t.inAt).minute();
+                        const punchInMins = time.tz(t.inAt).hour() * 60 + time.tz(t.inAt).minute();
                         const allowedStart = shiftStartMins + graceMins;
                         return punchInMins > allowedStart;
                     }
                 }
-                const h = dayjs(t.inAt).hour();
-                const min = dayjs(t.inAt).minute();
+                const h = time.tz(t.inAt).hour();
+                const min = time.tz(t.inAt).minute();
                 return h > 9 || (h === 9 && min > 15);
             }).length;
 
@@ -881,7 +881,7 @@ router.post('/close-month', requireRole('admin', 'super_admin'), async (req, res
         // Get the summary for this month (reuse calculation)
         const summaryRes = { query: { month: m, year: y }, tenantId: req.tenantId };
 
-        const daysInMonthClose = dayjs(`${y}-${String(m).padStart(2, '0')}-01`).daysInMonth();
+        const daysInMonthClose = time.dayUTC(`${y}-${String(m).padStart(2, '0')}-01`).daysInMonth();
         const startOfMonth = new Date(Date.UTC(y, m - 1, 1));
         const endOfMonth = new Date(Date.UTC(y, m - 1, daysInMonthClose, 23, 59, 59, 999));
 
@@ -920,8 +920,8 @@ router.post('/close-month', requireRole('admin', 'super_admin'), async (req, res
         for (const a of rawAssignments) {
             if (!shiftAssignments[a.employeeId]) shiftAssignments[a.employeeId] = [];
             shiftAssignments[a.employeeId].push({
-                startMs: dayjs(a.startDate).startOf('day').valueOf(),
-                endMs: dayjs(a.endDate).endOf('day').valueOf(),
+                startMs: time.dayUTC(a.startDate).valueOf(),
+                endMs: time.dayUTC(a.endDate).endOf('day').valueOf(),
                 shift: a.workShift,
             });
         }
@@ -957,17 +957,17 @@ router.post('/close-month', requireRole('admin', 'super_admin'), async (req, res
             // Late check-ins: same detection logic as /summary route
             const lateCheckInCount = et.filter(t => {
                 if (!t.inAt) return false;
-                const empShift = getEmployeeShiftForDate(emp.id, dayjs(t.date), shiftAssignments);
+                const empShift = getEmployeeShiftForDate(emp.id, time.dayUTC(t.date), shiftAssignments);
                 if (empShift && empShift.dayRecord && !empShift.dayRecord.isOff) {
                     const shiftStartMins = timeToMinutes(empShift.dayRecord.startTime);
                     const graceMins = empShift.dayRecord.graceMins || 0;
                     if (shiftStartMins !== null) {
-                        const punchInMins = dayjs(t.inAt).hour() * 60 + dayjs(t.inAt).minute();
+                        const punchInMins = time.tz(t.inAt).hour() * 60 + time.tz(t.inAt).minute();
                         return punchInMins > shiftStartMins + graceMins;
                     }
                 }
-                const h = dayjs(t.inAt).hour();
-                const min = dayjs(t.inAt).minute();
+                const h = time.tz(t.inAt).hour();
+                const min = time.tz(t.inAt).minute();
                 return h > 9 || (h === 9 && min > 15);
             }).length;
 

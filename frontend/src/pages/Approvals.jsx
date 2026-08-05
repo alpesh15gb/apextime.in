@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../lib/api';
-import dayjs from 'dayjs';
+import { fmtIST, fmtDateUTC, fmtDateTimeIST } from '../lib/time';
 import { CheckCircle2, XCircle, MapPin, Camera } from 'lucide-react';
 
 const LocationAddress = ({ lat, lng }) => {
@@ -70,7 +70,7 @@ const PhotoWithLocation = ({ photoUrl, lat, lng, time, label }) => {
                     <div style={{ opacity: 0.9, height: '10px', overflow: 'hidden' }}>{fullAddr.split(',').slice(1, 4).join(', ')}</div>
                     <div style={{ marginTop: '2px' }}>Lat {Number(lat).toFixed(6)}°</div>
                     <div>Long {Number(lng).toFixed(6)}°</div>
-                    <div style={{ marginTop: '1px', fontWeight: 'bold' }}>{dayjs(time).format('DD/MM/YY hh:mm A')} GMT+5:30</div>
+                    <div style={{ marginTop: '1px', fontWeight: 'bold' }}>{fmtDateTimeIST(time, 'DD/MM/YY hh:mm A')} IST</div>
                 </div>
             </div>
         </div>
@@ -120,16 +120,16 @@ export default function Approvals() {
 
                     <div className="approval-details">
                         <div className="approval-detail">
-                            <strong>Date:</strong> {dayjs(t.date).format('DD MMM YYYY')}
+                            <strong>Date:</strong> {fmtDateUTC(t.date)}
                         </div>
                         <div className="approval-detail">
-                            <strong>Clock In:</strong> {t.inAt ? dayjs(t.inAt).format('hh:mm A') : '-'}
+                            <strong>Clock In:</strong> {fmtIST(t.inAt)}
                         </div>
                         <div className="approval-detail">
-                            <strong>Clock Out:</strong> {t.outAt ? dayjs(t.outAt).format('hh:mm A') : 'Active'}
+                            <strong>Clock Out:</strong> {t.outAt ? fmtIST(t.outAt) : 'Active'}
                         </div>
                         <div className="approval-detail">
-                            <strong>Submitted:</strong> {dayjs(t.createdAt).format('hh:mm A')}
+                            <strong>Submitted:</strong> {fmtIST(t.createdAt)}
                         </div>
                     </div>
 

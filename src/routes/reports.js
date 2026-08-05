@@ -6,7 +6,14 @@ const timezone = require('dayjs/plugin/timezone');
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-const TZ = 'Asia/Kolkata';
+const time = require('../lib/time');
+
+const TZ = time.TZ;
+
+// Default minimum work hours for employees without a shift assignment
+// (rotational / irregular staff). No late/early penalties are applied to
+// unassigned days — only hours vs this minimum are compared.
+const DEFAULT_MIN_HOURS = 8;
 
 // Helper to format duration (ms -> HH:mm)
 const formatDuration = (ms) => {
@@ -40,9 +47,9 @@ const getEmployeeShiftForDate = (empId, dateObj, shiftAssignments) => {
     const assignments = shiftAssignments[empId];
     if (!assignments || assignments.length === 0) return null;
 
-    const dateMs = dateObj.valueOf();
+    const dayStr = dateObj.format('YYYY-MM-DD');
     for (const assign of assignments) {
-        if (dateMs >= assign.startMs && dateMs <= assign.endMs) {
+        if (dayStr >= assign.startStr && dayStr <= assign.endStr) {
             const dayName = DAY_MAP[dateObj.day()];
             const dayRecord = (assign.shift.records || []).find(r => r.day === dayName);
             return {
@@ -129,8 +136,11 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
     for (const a of rawAssignments) {
         if (!shiftAssignments[a.employeeId]) shiftAssignments[a.employeeId] = [];
         shiftAssignments[a.employeeId].push({
-            startMs: dayjs(a.startDate).startOf('day').valueOf(),
-            endMs: dayjs(a.endDate).endOf('day').valueOf(),
+            // Compare by calendar-date STRING: currentDay is an IST-midnight
+            // instant while @db.Date columns are UTC-midnight — instant
+            // comparisons would be off by 5.5h at the boundaries.
+            startStr: time.dayUTC(a.startDate).format('YYYY-MM-DD'),
+            endStr: time.dayUTC(a.endDate).format('YYYY-MM-DD'),
             shift: a.workShift,
         });
     }
@@ -145,7 +155,7 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
             },
         }
     });
-    const holidaySet = new Set(allHolidays.map(h => dayjs(h.date).format('YYYY-MM-DD')));
+    const holidaySet = new Set(allHolidays.map(h => time.dayUTC(h.date).format('YYYY-MM-DD')));
 
     // 3b. Fetch Approved Leaves for the date range
     const leaveRequests = await prisma.leaveRequest.findMany({
@@ -159,13 +169,13 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
         include: { leaveType: true }
     });
 
-    // Build leave map: employeeId -> [{ startMs, endMs, leaveType, days }]
+    // Build leave map: employeeId -> [{ startStr, endStr, leaveType, days }]
     const leaveMap = {};
     for (const lr of leaveRequests) {
         if (!leaveMap[lr.employeeId]) leaveMap[lr.employeeId] = [];
         leaveMap[lr.employeeId].push({
-            startMs: dayjs(lr.startDate).startOf('day').valueOf(),
-            endMs: dayjs(lr.endDate).endOf('day').valueOf(),
+            startStr: time.dayUTC(lr.startDate).format('YYYY-MM-DD'),
+            endStr: time.dayUTC(lr.endDate).format('YYYY-MM-DD'),
             leaveType: lr.leaveType,
             days: lr.days,
         });
@@ -311,6 +321,7 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                         
                         // Late — only on the IN day
                         const shiftStartMins = timeToMinutes(dayRec.startTime);
+                        const shiftEndMins = timeToMinutes(dayRec.endTime); // was referenced but never defined → ReferenceError
                         const graceMins = dayRec.graceMins || 0;
                         if (record.inAt && shiftStartMins !== null) {
                             const punchIn = dayjs.tz(record.inAt, TZ);
@@ -458,7 +469,9 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                     }
                 }
             } else {
-                // No shift assigned
+                // No shift assigned — rotational / irregular staff:
+                // flexible handling (per product decision): no late/early
+                // penalties, just hours worked vs the default minimum.
                 if (dayOfWeek === 0) { status = 'WO'; shiftName = 'OFF'; }
                 
                 // Overnight continuation even without shift
@@ -470,13 +483,13 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                     const midnight = currentDay.startOf('day');
                     workMs = contOut.diff(midnight);
                 } else if (record) {
-                    if (record.inAt) { inTime = dayjs(record.inAt).format('HH:mm'); status = 'P'; }
+                    if (record.inAt) { inTime = time.timeStrIST(record.inAt); status = 'P'; }
                     if (record.outAt) { 
-                        outTime = dayjs(record.outAt).format('HH:mm'); 
+                        outTime = time.timeStrIST(record.outAt);
                         workMs = dayjs(record.outAt).diff(dayjs(record.inAt)); 
                     }
                     
-                    const minWorkMs = 9 * 3600000;
+                    const minWorkMs = DEFAULT_MIN_HOURS * 3600000;
                     if (workMs > 0) {
                         lunchMs = 0;
                         if (workMs < minWorkMs) {
@@ -498,7 +511,7 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
             // Check if employee is on leave
             const empLeaves = leaveMap[emp.id] || [];
             for (const lv of empLeaves) {
-                if (lv.startMs <= currentDay.valueOf() && lv.endMs >= currentDay.valueOf()) {
+                if (lv.startStr <= dayKey && lv.endStr >= dayKey) {
                     isOnLeave = true;
                     leaveTypeStr = lv.leaveType.name || '';
                     leaveDuration = lv.days || 1.0;
@@ -632,6 +645,7 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
             else if (dayStatus === 'L') rowData.stats.leave++;
             else if (dayStatus === 'H' || dayStatus.substring(0, 1) === 'H') rowData.stats.wo += 0; // holidays separately
             rowData.stats.totalOtMs += otMs;
+            rowData.stats.totalWorkMs += workMs; // was missing → Work Hours Summary always 00:00
             rowData.stats.totalLossOfHoursMs = (rowData.stats.totalLossOfHoursMs || 0) + lossOfHoursMs;
             rowData.stats.totalLateMs += lateMs;
 
@@ -751,8 +765,8 @@ router.get('/grid', async (req, res, next) => {
 router.get('/monthly', async (req, res, next) => {
     try {
         const { month, year, departmentId } = req.query;
-        const m = month ? parseInt(month) : dayjs().month() + 1;
-        const y = year ? parseInt(year) : dayjs().year();
+        const m = month ? parseInt(month) : time.now().month() + 1;
+        const y = year ? parseInt(year) : time.now().year();
 
         const startOfMonth = dayjs.tz(`${y}-${m}-01`, TZ).startOf('month').format('YYYY-MM-DD');
         const endOfMonth = dayjs.tz(`${y}-${m}-01`, TZ).endOf('month').format('YYYY-MM-DD');
@@ -767,8 +781,8 @@ router.get('/approvals', async (req, res, next) => {
     try {
         const { startDate, endDate, status, departmentId } = req.query;
 
-        const start = startDate ? new Date(startDate) : dayjs().startOf('month').toDate();
-        const end = endDate ? new Date(endDate) : dayjs().endOf('month').toDate();
+        const start = startDate ? time.utcDate(startDate) : time.utcDate(time.now().startOf('month').format('YYYY-MM-DD'));
+        const end = endDate ? time.utcDate(endDate) : time.utcDate(time.now().endOf('month').format('YYYY-MM-DD'));
 
         const where = {
             tenantId: req.tenantId,
@@ -808,7 +822,7 @@ router.get('/approvals', async (req, res, next) => {
                 outTime: r.outAt ? dayjs.tz(r.outAt, TZ).format('HH:mm') : '-',
                 status: r.status,
                 reviewedBy: r.reviewer?.username || (r.status === 'auto_approved' ? 'System' : '-'),
-                reviewedAt: r.reviewedAt ? dayjs(r.reviewedAt).format('YYYY-MM-DD HH:mm') : '-',
+                reviewedAt: r.reviewedAt ? time.tz(r.reviewedAt).format('YYYY-MM-DD HH:mm') : '-',
                 remarks: r.remarks || '-',
                 photoUrl: r.meta?.in?.photo_url || r.meta?.photo_url || null,
                 location: lat ? `${lat}, ${lng}` : '-'
@@ -818,39 +832,6 @@ router.get('/approvals', async (req, res, next) => {
         res.json(formatted);
 
     } catch (error) { next(error); }
-});
-
-// TEMPORARY: Fix timezone data issue (10th showing on 9th)
-router.get('/fix-tz-data', async (req, res, next) => {
-    try {
-        console.log('[Fix] Starting timezone data fix...');
-        // Find all timesheets on May 9th for the current tenant
-        const timesheets = await prisma.timesheet.findMany({
-            where: {
-                tenantId: req.tenantId,
-                date: dayjs.tz('2026-05-09', TZ).startOf('day').toDate()
-            }
-        });
-
-        let movedCount = 0;
-        for (const ts of timesheets) {
-            // Check if the punch-in or any punch is actually on May 10th in IST
-            const inAt = ts.inAt ? dayjs.tz(ts.inAt, TZ) : null;
-            if (inAt && inAt.format('YYYY-MM-DD') === '2026-05-10') {
-                console.log(`[Fix] Moving timesheet ${ts.id} for employee ${ts.employeeId} to May 10th`);
-                await prisma.timesheet.update({
-                    where: { id: ts.id },
-                    data: { date: dayjs.tz('2026-05-10', TZ).startOf('day').toDate() }
-                });
-                movedCount++;
-            }
-        }
-
-        res.json({ success: true, moved: movedCount, checked: timesheets.length });
-    } catch (error) {
-        console.error('[Fix] Error:', error);
-        res.status(500).json({ error: error.message });
-    }
 });
 
 module.exports = router;

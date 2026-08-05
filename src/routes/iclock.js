@@ -13,18 +13,101 @@ dayjs.extend(customParseFormat);
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-// Set default timezone to India
-const TZ = 'Asia/Kolkata';
+const time = require('../lib/time');
+const { processDevicePunch } = require('../lib/punchProcessor');
 
+const TZ = 'Asia/Kolkata';
 
 // Parse raw text body for ADMS updates (sometimes sent as text/plain or octet-stream)
 router.use(express.text({ type: '*/*', limit: '10mb' }));
 
-// GET /iclock/cdata — Device registration & config pull
+/**
+ * Shared per-punch pipeline:
+ *  - create/find the DeviceLog entry,
+ *  - resolve the employee (auto-creating from device user if missing),
+ *  - delegate to the punch processor to attach/create the timesheet,
+ *  - mark the log processed.
+ */
+async function handlePunch({ device, userId, punchTime, verifyMode, inOutMode, rawLine }) {
+    if (!userId || !punchTime) return false;
+
+    // Create (or find) the raw device log
+    let currentLog = await prisma.deviceLog.findFirst({
+        where: { deviceId: device.id, userId, punchTime },
+    });
+
+    if (!currentLog) {
+        currentLog = await prisma.deviceLog.create({
+            data: {
+                tenantId: device.tenantId,
+                deviceId: device.id,
+                rawData: rawLine,
+                userId,
+                punchTime,
+                processed: false,
+            },
+        });
+    } else if (currentLog.processed) {
+        // Already processed, skip (idempotent)
+        return false;
+    }
+
+    // Resolve employee
+    let employee = await prisma.employee.findFirst({
+        where: { tenantId: device.tenantId, employeeCode: userId },
+    });
+
+    if (!employee) {
+        try {
+            const newContact = await prisma.contact.create({
+                data: { tenantId: device.tenantId, firstName: 'Device User', lastName: userId },
+            });
+            employee = await prisma.employee.create({
+                data: {
+                    tenantId: device.tenantId,
+                    contactId: newContact.id,
+                    employeeCode: userId,
+                    joiningDate: new Date(),
+                    type: 'full_time',
+                    status: 'active',
+                },
+            });
+            const bcrypt = require('bcryptjs');
+            const passwordHash = await bcrypt.hash(userId, 10);
+            await prisma.user.create({
+                data: { tenantId: device.tenantId, username: userId, passwordHash, role: 'employee', employeeId: employee.id },
+            });
+            console.log(`[iClock] Auto-created employee & user ${userId} from device ${device.serialNumber}`);
+        } catch (err) {
+            console.error(`[iClock] Failed to auto-create employee ${userId}:`, err);
+        }
+    }
+
+    if (!employee) return false;
+
+    const result = await processDevicePunch({
+        device,
+        employee,
+        punchTime,
+        inOutMode,
+        verifyMode,
+        sn: device.serialNumber,
+    });
+    console.log(`[iClock] ${device.serialNumber} emp=${userId} ${time.dayStrIST(punchTime)} ${time.timeStrIST(punchTime)} → ${result.action} (ts#${result.timesheetId || '-'})`);
+
+    // Mark log as processed
+    await prisma.deviceLog.updateMany({
+        where: { deviceId: device.id, userId, punchTime, processed: false },
+        data: { processed: true },
+    });
+
+    return true;
+}
+
 // GET /iclock/cdata — Device registration & config pull
 router.get(['/cdata', '/cdata.aspx'], async (req, res, next) => {
     try {
-        const { SN, options, pushver, language } = req.query;
+        const { SN, options } = req.query;
 
         if (!SN) {
             return res.status(400).send('ERROR: No serial number');
@@ -37,7 +120,6 @@ router.get(['/cdata', '/cdata.aspx'], async (req, res, next) => {
 
         if (!device) {
             console.log(`[iClock] Unknown device: ${SN}`);
-            // Auto-register the device (find any tenant's device with this SN)
             return res.send('OK');
         }
 
@@ -74,7 +156,6 @@ router.get(['/cdata', '/cdata.aspx'], async (req, res, next) => {
     }
 });
 
-// POST /iclock/cdata — Receive attendance/operation logs
 // POST /iclock/cdata — Receive attendance/operation logs
 router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
     try {
@@ -113,227 +194,9 @@ router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
             }
         }
 
-        // Debug logging
-        console.log(`[iClock] Received POST from ${SN}. Content-Type: ${req.headers['content-type']}. Body length: ${rawBody.length}`);
-        if (rawBody.length > 0) {
-            console.log(`[iClock] Body preview: ${rawBody.substring(0, 200)}`);
-        } else {
+        if (!rawBody || rawBody.length === 0) {
             // Heartbeat POST or really empty
             return res.send('OK: 0\r\n');
-        }
-
-        if (table === 'ATTLOG' || !table) {
-            // Parse attendance log lines
-            // Format: userId\tdateTime\tverifyMode\tinOutMode\tworkCode
-            const lines = rawBody.split('\n').filter(l => l.trim());
-            let processed = 0;
-
-            for (const line of lines) {
-                try {
-                    // Support both tab-separated and space-separated data
-                    let parts = line.split('\t');
-                    if (parts.length < 2) {
-                        parts = line.split(/\s+/).filter(p => p.trim());
-                    }
-                    
-                    if (parts.length < 2) {
-                        console.log(`[iClock] Skipping malformed line: ${line}`);
-                        continue;
-                    }
-
-                    const userId = parts[0].trim();
-                    const dateTimeStr = parts[1] + (parts[1].length < 11 && parts[2] ? ' ' + parts[2] : '');
-                    const verifyMode = parts[3]?.trim() || '0';
-                    const inOutMode = parts[4]?.trim() || '0';
-
-                    if (!userId || !dateTimeStr) continue;
-
-                    // Log the raw data
-                    // Parse as local time (Asia/Kolkata) because devices are in India
-                    const punchTime = dayjs.tz(dateTimeStr, 'YYYY-MM-DD HH:mm:ss', TZ).toDate();
-
-                    // Check for existing log
-                    let currentLog = await prisma.deviceLog.findFirst({
-                        where: {
-                            deviceId: device.id,
-                            userId,
-                            punchTime,
-                        },
-                    });
-
-                    if (!currentLog) {
-                        currentLog = await prisma.deviceLog.create({
-                            data: {
-                                tenantId: device.tenantId,
-                                deviceId: device.id,
-                                rawData: line,
-                                userId,
-                                punchTime,
-                                processed: false,
-                            },
-                        });
-                    } else if (currentLog.processed) {
-                        // Already processed, skip
-                        continue;
-                    }
-                    // Else: Log exists but processed=false. Proceed to process it.
-
-                    // Find employee by code
-                    let employee = await prisma.employee.findFirst({
-                        where: { tenantId: device.tenantId, employeeCode: userId },
-                    });
-
-                    if (!employee) {
-                        try {
-                            // Auto-create employee from device user
-                            const newContact = await prisma.contact.create({
-                                data: {
-                                    tenantId: device.tenantId,
-                                    firstName: 'Device User',
-                                    lastName: userId,
-                                },
-                            });
-
-                            employee = await prisma.employee.create({
-                                data: {
-                                    tenantId: device.tenantId,
-                                    contactId: newContact.id,
-                                    employeeCode: userId,
-                                    joiningDate: new Date(),
-                                    type: 'full_time',
-                                    status: 'active',
-                                },
-                            });
-
-                            // Auto-create User account
-                            const bcrypt = require('bcryptjs');
-                            const passwordHash = await bcrypt.hash(userId, 10);
-                            await prisma.user.create({
-                                data: {
-                                    tenantId: device.tenantId,
-                                    username: userId,
-                                    passwordHash,
-                                    role: 'employee',
-                                    employeeId: employee.id,
-                                },
-                            });
-
-                            console.log(`[iClock] Auto-created employee & user ${userId} from device ${SN}`);
-                        } catch (err) {
-                            console.error(`[iClock] Failed to auto-create employee ${userId}:`, err);
-                        }
-                    }
-
-                    if (employee) {
-                        const nowIST = dayjs.tz(punchTime, TZ);
-                        const dateStr = nowIST.format('YYYY-MM-DD');
-
-                        // 1. ROBUST LOOKBACK: Check for any open or recent timesheet in the last 22 hours
-                        // This ensures we catch overnight shifts and late-day out punches perfectly.
-                        // If the device explicitly says this is an OUT punch (inOutMode '1' or '5'), 
-                        // we prioritize finding the most recent timesheet to close.
-                        let lookbackHours = 22;
-                        
-                        let timesheet = await prisma.timesheet.findFirst({
-                            where: {
-                                tenantId: device.tenantId,
-                                employeeId: employee.id,
-                                inAt: {
-                                    gte: dayjs(punchTime).subtract(lookbackHours, 'hour').toDate(),
-                                    lte: punchTime
-                                }
-                            },
-                            orderBy: { inAt: 'desc' } // Get the most recent one
-                        });
-
-                        // If device specifically says OUT and we didn't find one in 22h, 
-                        // try looking back even further (up to 36h) just in case.
-                        if (!timesheet && (inOutMode === '1' || inOutMode === '5')) {
-                            timesheet = await prisma.timesheet.findFirst({
-                                where: {
-                                    tenantId: device.tenantId,
-                                    employeeId: employee.id,
-                                    inAt: {
-                                        gte: dayjs(punchTime).subtract(36, 'hour').toDate(),
-                                        lte: punchTime
-                                    },
-                                    outAt: null
-                                },
-                                orderBy: { inAt: 'desc' }
-                            });
-                        }
-
-                        if (timesheet) {
-                            // Found a recent timesheet, update its OUT time
-                            let existingPunches = timesheet.punches || [];
-                            if (typeof existingPunches === 'string') {
-                                try { existingPunches = JSON.parse(existingPunches); } catch (e) { existingPunches = []; }
-                            }
-                            if (!Array.isArray(existingPunches)) existingPunches = [];
-
-                            const lastPunch = existingPunches[existingPunches.length - 1];
-                            const lastPunchRawTime = lastPunch ? (lastPunch.time?.value || lastPunch.time) : timesheet.inAt;
-                            const lastPunchTime = dayjs(lastPunchRawTime);
-
-                            const diffFromLastMs = dayjs(punchTime).diff(lastPunchTime);
-                            
-                            // If calculation failed for some reason, default to allowing the punch if it's a different time
-                            const isDuplicate = !isNaN(diffFromLastMs) && diffFromLastMs < 120000 && diffFromLastMs >= 0;
-                            
-                            if (!isDuplicate) {
-                                const newPunch = { time: punchTime, device_sn: SN, type: 'auto' };
-                                const updatedPunches = [...existingPunches, newPunch];
-                                
-                                // Always update final outAt with the latest punch
-                                await prisma.timesheet.update({
-                                    where: { id: timesheet.id },
-                                    data: { 
-                                        punches: updatedPunches,
-                                        outAt: punchTime 
-                                    },
-                                });
-                                console.log(`[iClock] Updated TS ${timesheet.id} for ${userId} with OUT punch ${dayjs(punchTime).format('HH:mm')}`);
-                            } else {
-                                console.log(`[iClock] Ignored duplicate punch for ${userId} (diff: ${diffFromLastMs}ms)`);
-                            }
-                        } else {
-                            // First punch of the day or no recent timesheet found: Clock in
-                            // If the device explicitly says this is an OUT punch, but we found no IN punch,
-                            // we still record it but as an IN punch (or we could ignore it, but recording is safer).
-                            const firstPunch = { time: punchTime, device_sn: SN, type: inOutMode === '1' || inOutMode === '5' ? 'out' : 'in' };
-                            const dbDate = dayjs.utc(dateStr).toDate();
-                            
-                            await prisma.timesheet.create({
-                                data: {
-                                    tenantId: device.tenantId,
-                                    employeeId: employee.id,
-                                    date: dbDate,
-                                    inAt: punchTime,
-                                    outAt: null, 
-                                    punches: [firstPunch],
-                                    source: 'device',
-                                    status: 'auto_approved',
-                                    meta: { device_sn: SN, verify_mode: verifyMode, in_out_mode: inOutMode },
-                                },
-                            });
-                            console.log(`[iClock] Created new TS for ${userId} at ${dayjs(punchTime).format('HH:mm')} (Mode: ${inOutMode})`);
-                        }
-
-                        // Mark log as processed
-                        await prisma.deviceLog.updateMany({
-                            where: { deviceId: device.id, userId, punchTime, processed: false },
-                            data: { processed: true },
-                        });
-                    }
-
-                    processed++;
-                } catch (lineError) {
-                    console.error(`[iClock] Error processing line: ${line}`, lineError.message);
-                }
-            }
-
-            console.log(`[iClock] Device ${SN}: processed ${processed}/${lines.length} records`);
-            return res.send(`OK: ${processed}\r\n`);
         }
 
         if (table === 'OPERLOG') {
@@ -341,7 +204,48 @@ router.post(['/cdata', '/cdata.aspx'], async (req, res, next) => {
             return res.send('OK: 0\r\n');
         }
 
-        res.send('OK: 0\r\n');
+        // Parse attendance log lines
+        // Format: userId\tdateTime\tverifyMode\tinOutMode\tworkCode
+        const lines = rawBody.split('\n').filter(l => l.trim());
+        let processed = 0;
+
+        for (const line of lines) {
+            try {
+                // Support both tab-separated and space-separated data
+                let parts = line.split('\t');
+                if (parts.length < 2) {
+                    parts = line.split(/\s+/).filter(p => p.trim());
+                }
+
+                if (parts.length < 2) {
+                    console.log(`[iClock] Skipping malformed line: ${line}`);
+                    continue;
+                }
+
+                const userId = parts[0].trim();
+                const dateTimeStr = parts[1] + (parts[1].length < 11 && parts[2] ? ' ' + parts[2] : '');
+                const verifyMode = parts[3]?.trim() || '0';
+                const inOutMode = parts[4]?.trim() || '0';
+
+                if (!userId || !dateTimeStr) continue;
+
+                // Parse as local time (Asia/Kolkata) because devices are in India
+                const punchTime = time.parseDeviceDateTime(dateTimeStr);
+                if (!punchTime) {
+                    console.log(`[iClock] Skipping unparseable date: ${dateTimeStr}`);
+                    continue;
+                }
+
+                if (await handlePunch({ device, userId, punchTime, verifyMode, inOutMode, rawLine: line })) {
+                    processed++;
+                }
+            } catch (lineError) {
+                console.error(`[iClock] Error processing line: ${line}`, lineError.message);
+            }
+        }
+
+        console.log(`[iClock] Device ${SN}: processed ${processed}/${lines.length} records`);
+        return res.send(`OK: ${processed}\r\n`);
     } catch (error) {
         console.error('[iClock] POST error:', error);
         res.status(500).send('ERROR');
@@ -353,7 +257,7 @@ router.post(['/DeviceLogsPost', '/DeviceLogsPost.aspx'], async (req, res, next) 
     try {
         // AI devices send JSON: { TableName: 'ATTLOG', Rec: [ { ENROLLNO, ATT_TIME, VerifyCode, SN, ... } ] }
         const data = Array.isArray(req.body) ? req.body : (req.body.Rec || req.body);
-        
+
         if (!data || !Array.isArray(data) || data.length === 0) {
             return res.json({ Code: 200, Message: 'OK' });
         }
@@ -365,13 +269,14 @@ router.post(['/DeviceLogsPost', '/DeviceLogsPost.aspx'], async (req, res, next) 
                 const dateTimeStr = record.ATT_TIME || record.PunchTime || '';
                 const deviceSn = record.SN || record.DeviceSerial || '';
                 const verifyMode = record.VerifyCode || record.VerifyMode || '0';
-                
+                const inOutMode = record.InOutMode || record.State || '0';
+
                 if (!userId || !dateTimeStr) continue;
 
                 // Find device by serial or use query SN
                 const sn = req.query.SN || deviceSn;
                 const device = await prisma.device.findFirst({
-                    where: { serialNumber: sn }
+                    where: { serialNumber: sn },
                 });
 
                 if (!device) {
@@ -379,10 +284,13 @@ router.post(['/DeviceLogsPost', '/DeviceLogsPost.aspx'], async (req, res, next) 
                     continue;
                 }
 
-                // Parse punch time
-                const punchTime = dayjs.tz(dateTimeStr, 'YYYY-MM-DD HH:mm:ss', TZ).toDate();
+                // Parse punch time (IST wall clock)
+                const punchTime = time.parseDeviceDateTime(dateTimeStr);
+                if (!punchTime) {
+                    console.log(`[AI Device] Unparseable time: ${dateTimeStr}`);
+                    continue;
+                }
 
-                // Create device log
                 await prisma.deviceLog.create({
                     data: {
                         tenantId: device.tenantId,
@@ -391,15 +299,17 @@ router.post(['/DeviceLogsPost', '/DeviceLogsPost.aspx'], async (req, res, next) 
                         userId,
                         punchTime,
                         processed: false,
-                    }
+                    },
                 });
-                
-                processedCount++;
+
+                if (await handlePunch({ device, userId, punchTime, verifyMode, inOutMode, rawLine: JSON.stringify(record) })) {
+                    processedCount++;
+                }
             } catch (err) {
                 console.error('[AI Device] Record error:', err);
             }
         }
-        
+
         console.log(`[AI Device] Processed ${processedCount} records`);
         res.json({ Code: 200, Message: `Processed ${processedCount} records` });
     } catch (error) {
@@ -408,7 +318,6 @@ router.post(['/DeviceLogsPost', '/DeviceLogsPost.aspx'], async (req, res, next) 
     }
 });
 
-// GET /iclock/getrequest — Device polls for pending commands
 // GET /iclock/getrequest — Device polls for pending commands
 router.get(['/getrequest', '/getrequest.aspx'], async (req, res, next) => {
     try {
@@ -425,7 +334,6 @@ router.get(['/getrequest', '/getrequest.aspx'], async (req, res, next) => {
         }
 
         // Check for pending commands
-        // Check for pending commands
         if (device) {
             const cmd = await prisma.deviceCommand.findFirst({
                 where: { deviceId: device.id, status: 'pending' },
@@ -434,7 +342,6 @@ router.get(['/getrequest', '/getrequest.aspx'], async (req, res, next) => {
 
             if (cmd) {
                 // Send command: C:ID:COMMAND
-                // Example: C:1:DATA QUERY ATTLOG ...
                 const payload = `C:${cmd.id}:${cmd.command}\r\n`;
                 await prisma.deviceCommand.update({
                     where: { id: cmd.id },
@@ -452,7 +359,6 @@ router.get(['/getrequest', '/getrequest.aspx'], async (req, res, next) => {
     }
 });
 
-// POST /iclock/devicecmd — Device command response
 // POST /iclock/devicecmd — Device command response
 router.post(['/devicecmd', '/devicecmd.aspx'], async (req, res, next) => {
     try {

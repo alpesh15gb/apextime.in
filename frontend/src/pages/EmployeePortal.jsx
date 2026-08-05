@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import dayjs from 'dayjs';
+import { fmtIST, fmtDateUTC } from '../lib/time';
 import { Clock, LogOut, CalendarOff, Megaphone, Camera, MapPin, Send } from 'lucide-react';
 
 export default function EmployeePortal() {
@@ -201,8 +202,8 @@ export default function EmployeePortal() {
 
                             {dashboard?.today?.inAt && (
                                 <div style={{ marginTop: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-                                    In: {dayjs(dashboard.today.inAt).format('hh:mm A')}
-                                    {dashboard.today.outAt && ` • Out: ${dayjs(dashboard.today.outAt).format('hh:mm A')}`}
+                                    In: {fmtIST(dashboard.today.inAt)}
+                                    {dashboard.today.outAt && ` • Out: ${fmtIST(dashboard.today.outAt)}`}
                                     <br />
                                     <span className={`badge badge-${dashboard.today.status === 'approved' || dashboard.today.status === 'auto_approved' ? 'success' : 'warning'}`} style={{ marginTop: '4px' }}>
                                         {dashboard.today.status}
@@ -249,9 +250,9 @@ export default function EmployeePortal() {
                         {myAttendance.map((a, i) => (
                             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid var(--border-light)' }}>
                                 <div>
-                                    <div style={{ fontSize: '13px', fontWeight: 600 }}>{dayjs(a.date).format('DD MMM YYYY')}</div>
+                                    <div style={{ fontSize: '13px', fontWeight: 600 }}>{fmtDateUTC(a.date)}</div>
                                     <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                                        {a.inAt ? dayjs(a.inAt).format('hh:mm A') : '-'} – {a.outAt ? dayjs(a.outAt).format('hh:mm A') : 'Active'}
+                                        {fmtIST(a.inAt)} – {a.outAt ? fmtIST(a.outAt) : 'Active'}
                                     </div>
                                 </div>
                                 <span className={`badge badge-${a.status === 'approved' || a.status === 'auto_approved' ? 'success' : a.status === 'rejected' ? 'danger' : 'warning'}`}>{a.status}</span>
@@ -274,7 +275,7 @@ export default function EmployeePortal() {
                                     <div>
                                         <div style={{ fontSize: '14px', fontWeight: 600 }}>{l.leaveType}</div>
                                         <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                                            {dayjs(l.startDate).format('DD MMM')} - {dayjs(l.endDate).format('DD MMM YYYY')} ({l.days} days)
+                                            {fmtDateUTC(l.startDate, 'DD MMM')} - {fmtDateUTC(l.endDate, 'DD MMM YYYY')} ({l.days} days)
                                         </div>
                                         {l.reason && <div style={{ fontSize: '12px', marginTop: '4px', color: 'var(--text-secondary)' }}>{l.reason}</div>}
                                     </div>

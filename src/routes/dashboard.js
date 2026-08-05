@@ -1,11 +1,12 @@
 const router = require('express').Router();
 const prisma = require('../lib/prisma');
-const dayjs = require('dayjs');
+const time = require('../lib/time');
 
 // GET /api/dashboard
 router.get('/', async (req, res, next) => {
     try {
-        const today = dayjs().format('YYYY-MM-DD');
+        // IST-aware "today" — must never depend on the server timezone.
+        const today = time.utcDate(time.todayStr());
 
         const [
             totalEmployees,
@@ -17,7 +18,7 @@ router.get('/', async (req, res, next) => {
         ] = await Promise.all([
             prisma.employee.count({ where: { tenantId: req.tenantId, status: 'active' } }),
             prisma.timesheet.count({
-                where: { tenantId: req.tenantId, date: new Date(today), status: { in: ['auto_approved', 'approved'] } },
+                where: { tenantId: req.tenantId, date: today, status: { in: ['auto_approved', 'approved'] } },
             }),
             prisma.timesheet.count({ where: { tenantId: req.tenantId, status: 'pending' } }),
             prisma.leaveRequest.count({ where: { tenantId: req.tenantId, status: 'pending' } }),

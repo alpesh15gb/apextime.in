@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const prisma = require('../lib/prisma');
 const { requireRole } = require('../middleware/auth');
+const time = require('../lib/time');
 
 // GET /api/work-shifts
 router.get('/', async (req, res, next) => {
@@ -137,8 +138,9 @@ router.post('/:uuid/assign', requireRole('admin', 'super_admin'), async (req, re
                     data: {
                         employeeId: parseInt(empId),
                         workShiftId: shift.id,
-                        startDate: new Date(startDate),
-                        endDate: new Date(endDate),
+                        // @db.Date columns: IST calendar day at UTC midnight.
+                        startDate: time.utcDate(startDate),
+                        endDate: time.utcDate(endDate),
                     },
                 })
             )

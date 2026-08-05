@@ -5,12 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 const prisma = require('../lib/prisma');
 const { requireRole } = require('../middleware/auth');
 const dayjs = require('dayjs');
-const utc = require('dayjs/plugin/utc');
-const timezone = require('dayjs/plugin/timezone');
-dayjs.extend(utc);
-dayjs.extend(timezone);
-
-const TZ = 'Asia/Kolkata';
+const time = require('../lib/time');
 
 // Multer config for selfie uploads
 const storage = multer.diskStorage({
@@ -40,9 +35,10 @@ router.get('/timesheets', async (req, res, next) => {
         if (employeeId) where.employeeId = parseInt(employeeId);
         if (status) where.status = status;
         if (source) where.source = source;
-        if (date) where.date = new Date(date);
+        // Date-only filters: treat 'YYYY-MM-DD' as an IST calendar day stored at UTC midnight.
+        if (date) where.date = time.utcDate(date);
         if (startDate && endDate) {
-            where.date = { gte: new Date(startDate), lte: new Date(endDate) };
+            where.date = { gte: time.utcDate(startDate), lte: time.utcDate(endDate) };
         }
 
         const [timesheets, total] = await Promise.all([
@@ -125,7 +121,7 @@ router.post('/punch', upload.single('photo'), async (req, res, next) => {
         }
 
         const employee = req.user.employee;
-        const now = dayjs().tz(TZ);
+        const now = time.now(); // IST-aware "now"
         const todayStr = now.format('YYYY-MM-DD');
         const photoUrl = req.file ? `/uploads/punches/${req.file.filename}` : null;
 
@@ -133,7 +129,7 @@ router.post('/punch', upload.single('photo'), async (req, res, next) => {
         const existingTimesheet = await prisma.timesheet.findFirst({
             where: {
                 employeeId: employee.id,
-                date: dayjs.utc(todayStr).startOf('day').toDate(),
+                date: time.utcDate(todayStr),
                 outAt: null,
                 source: 'mobile',
             },
@@ -238,7 +234,7 @@ router.post('/:uuid/reject', requireRole('admin', 'super_admin'), async (req, re
 // GET /api/attendance/report - Daily attendance report
 router.get('/report', requireRole('admin', 'super_admin'), async (req, res, next) => {
     try {
-        const date = req.query.date || dayjs().tz(TZ).format('YYYY-MM-DD');
+        const date = req.query.date || time.todayStr();
 
         const employees = await prisma.employee.findMany({
             where: { tenantId: req.tenantId, status: 'active' },
@@ -249,7 +245,7 @@ router.get('/report', requireRole('admin', 'super_admin'), async (req, res, next
         const timesheets = await prisma.timesheet.findMany({
             where: {
                 tenantId: req.tenantId,
-                date: dayjs.utc(date).startOf('day').toDate(),
+                date: time.utcDate(date),
                 status: { in: ['auto_approved', 'approved'] },
             },
         });
@@ -302,9 +298,9 @@ router.post('/manual', requireRole('admin', 'super_admin'), async (req, res, nex
             data: {
                 tenantId: req.tenantId,
                 employeeId: employee.id,
-                date: dayjs.utc(date).startOf('day').toDate(),
-                inAt: inAt ? dayjs.tz(inAt, TZ).toDate() : null,
-                outAt: outAt ? dayjs.tz(outAt, TZ).toDate() : null,
+                date: time.utcDate(date),
+                inAt: inAt ? time.tz(inAt).toDate() : null,
+                outAt: outAt ? time.tz(outAt).toDate() : null,
                 source: 'manual',
                 status: 'auto_approved',
                 reviewedBy: req.userId,

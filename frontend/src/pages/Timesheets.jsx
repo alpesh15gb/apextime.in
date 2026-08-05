@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../lib/api';
 import dayjs from 'dayjs';
+import { fmtIST } from '../lib/time';
 import { Clock, Search } from 'lucide-react';
 
 export default function Timesheets() {
@@ -35,8 +36,8 @@ export default function Timesheets() {
                                 <td>{t.employeeName}</td>
                                 <td><strong>{t.employeeCode}</strong></td>
                                 <td>{t.department || '-'}</td>
-                                <td>{t.inAt ? dayjs(t.inAt).format('hh:mm A') : '-'}</td>
-                                <td>{t.outAt ? dayjs(t.outAt).format('hh:mm A') : <span style={{ color: 'var(--warning)' }}>Active</span>}</td>
+                                <td>{fmtIST(t.inAt)}</td>
+                                <td>{t.outAt ? fmtIST(t.outAt) : <span style={{ color: 'var(--warning)' }}>Active</span>}</td>
                                 <td><span className={`badge badge-${t.source === 'device' ? 'info' : t.source === 'mobile' ? 'purple' : 'warning'}`}>{t.source}</span></td>
                                 <td><span className={`badge badge-${t.status === 'approved' || t.status === 'auto_approved' ? 'success' : t.status === 'pending' ? 'warning' : 'danger'}`}>{t.status}</span></td>
                             </tr>

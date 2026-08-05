@@ -4,6 +4,7 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const prisma = require('../lib/prisma');
 const dayjs = require('dayjs');
+const time = require('../lib/time');
 
 const fs = require('fs');
 
@@ -28,11 +29,11 @@ router.get('/dashboard', async (req, res, next) => {
         }
 
         const employee = req.user.employee;
-        const today = dayjs().format('YYYY-MM-DD');
+        const today = time.utcDate(time.todayStr());
 
         // Today's timesheet
         const todayTimesheet = await prisma.timesheet.findFirst({
-            where: { employeeId: employee.id, date: new Date(today) },
+            where: { employeeId: employee.id, date: today },
             orderBy: { inAt: 'desc' },
         });
 
@@ -61,9 +62,9 @@ router.get('/dashboard', async (req, res, next) => {
             take: 5,
         });
 
-        // This month stats
-        const monthStart = dayjs().startOf('month').toDate();
-        const monthEnd = dayjs().endOf('month').toDate();
+        // This month stats (IST month boundaries)
+        const monthStart = time.utcDate(time.now().startOf('month').format('YYYY-MM-DD'));
+        const monthEnd = time.utcDate(time.now().endOf('month').format('YYYY-MM-DD'));
         const monthTimesheets = await prisma.timesheet.count({
             where: {
                 employeeId: employee.id,
@@ -115,8 +116,8 @@ router.post('/punch', upload.single('photo'), async (req, res, next) => {
 
         const employee = req.user.employee;
         const { latitude, longitude } = req.body;
-        const now = dayjs();
-        const today = now.format('YYYY-MM-DD');
+        const now = time.now(); // IST-aware — never server-timezone dependent
+        const today = time.utcDate(now.format('YYYY-MM-DD'));
         const photoUrl = req.file ? `/uploads/punches/${req.file.filename}` : null;
 
         if (!photoUrl) {
@@ -128,7 +129,7 @@ router.post('/punch', upload.single('photo'), async (req, res, next) => {
 
         // Check for open timesheet
         const openTimesheet = await prisma.timesheet.findFirst({
-            where: { employeeId: employee.id, date: new Date(today), outAt: null, source: 'mobile' },
+            where: { employeeId: employee.id, date: today, outAt: null, source: 'mobile' },
             orderBy: { inAt: 'desc' },
         });
 
@@ -158,7 +159,7 @@ router.post('/punch', upload.single('photo'), async (req, res, next) => {
                 data: {
                     tenantId: req.tenantId,
                     employeeId: employee.id,
-                    date: new Date(today),
+                    date: today,
                     inAt: now.toDate(),
                     source: 'mobile',
                     status: 'pending',
@@ -184,10 +185,10 @@ router.get('/my-attendance', async (req, res, next) => {
         if (!req.user.employeeId) return res.json([]);
 
         const { month, year } = req.query;
-        const m = parseInt(month || dayjs().month() + 1);
-        const y = parseInt(year || dayjs().year());
-        const startDate = dayjs(`${y}-${m}-01`).startOf('month').toDate();
-        const endDate = dayjs(`${y}-${m}-01`).endOf('month').toDate();
+        const m = parseInt(month || time.now().month() + 1);
+        const y = parseInt(year || time.now().year());
+        const startDate = time.utcDate(`${y}-${String(m).padStart(2, '0')}-01`);
+        const endDate = time.utcDate(time.dayUTC(`${y}-${String(m).padStart(2, '0')}-01`).endOf('month').format('YYYY-MM-DD'));
 
         const timesheets = await prisma.timesheet.findMany({
             where: {
