@@ -61,6 +61,17 @@ const newSheet = [...st.values()].find(t => t.meta && t.meta.repair_split_from =
 ok('ts6 split: new sheet created for next-day punch', !!newSheet, 'no new sheet');
 ok('ts6 split: new sheet inAt 09:34 IST', newSheet && newSheet.inAt === '2026-08-06T04:04:00.000Z');
 
+// ── RE-GLUE REGRESSION (emp 6): two consecutive glued sheets. The merge pass
+// must use POST-split punches as its base and only absorb the split-created
+// 09:34 punch into ts#8 when the result is plausible (09:34→20:07 = 10h33m),
+// NOT merge pre-split punches (which would glue 09:34→09:36 next day = 24h).
+ok('ts7 kept as open IN 18:16 (missed OUT)', get(7).outAt === null && get(7).inAt === '2026-08-01T12:46:00.000Z', JSON.stringify(get(7)));
+ok('ts7 split-created 09:34 was ABSORBED into ts8 (no orphan row)', ![...st.values()].some(t => t.meta && t.meta.repair_split_from === 7), JSON.stringify([...st.values()].filter(t => t.meta && t.meta.repair_split_from === 7).map(t => t.id)));
+ok('ts8 absorbed 09:34 → in 09:34 (04:04Z)', get(8).inAt === '2026-08-02T04:04:00.000Z', String(get(8).inAt));
+ok('ts8 out 20:07 (14:37Z) — NO 24h glue', get(8).outAt === '2026-08-02T14:37:00.000Z', String(get(8).outAt));
+ok('ts8 punches 09:34+20:07 (no 09:36 next-day punch)', JSON.stringify(get(8).punches).includes('2026-08-02T04:04:00.000Z') && JSON.stringify(get(8).punches).includes('2026-08-02T14:37:00.000Z') && !JSON.stringify(get(8).punches).includes('2026-08-03T04:06:00.000Z'), JSON.stringify(get(8).punches));
+ok('ts8 split created a 09:36 sheet for 03-08', [...st.values()].some(t => t.meta && t.meta.repair_split_from === 8 && t.inAt === '2026-08-03T04:06:00.000Z'));
+
 // Cleanup dump so future runs reseed.
 reset();
 console.log(`\n${pass} passed, ${fail} failed`);

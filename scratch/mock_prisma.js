@@ -28,10 +28,23 @@ function seedStore() {
     // + 09:34 IST day2 = 15h18m span for a 10h shift → must split into 2 sheets.
     add({ tenantId: 1, employeeId: 5, date: iso('2026-08-05T00:00:00.000Z'), inAt: iso('2026-08-05T12:46:00.000Z'), outAt: iso('2026-08-06T04:04:00.000Z'), punches: [{ time: '2026-08-05T12:46:00.000Z' }, { time: '2026-08-06T04:04:00.000Z' }], status: 'auto_approved', source: 'device', createdAt: iso('2026-08-06T05:00:00Z') });
 
-    // Shift assignment: employee 5 works a 10h shift on Wednesdays (18:00→04:00).
+    // ts#7 + ts#8: THE RE-GLUE REGRESSION — emp 6 has TWO consecutive glued
+    // sheets (18:16→09:34 next day, then 20:07→09:36 next day). After the split
+    // pass, the 09:34 punch created from ts#7 lands on 02-08 (same date as
+    // ts#8). The merge pass must absorb it into ts#8 ONLY IF the result stays
+    // plausible (09:34→20:07 = 10h33m) — NOT merge the original pre-split
+    // punches (which would give 09:34→09:36 next day = 24h02m glue).
+    add({ tenantId: 1, employeeId: 6, date: iso('2026-08-01T00:00:00.000Z'), inAt: iso('2026-08-01T12:46:00.000Z'), outAt: iso('2026-08-02T04:04:00.000Z'), punches: [{ time: '2026-08-01T12:46:00.000Z' }, { time: '2026-08-02T04:04:00.000Z' }], status: 'auto_approved', source: 'device', createdAt: iso('2026-08-02T05:00:00Z') });
+    add({ tenantId: 1, employeeId: 6, date: iso('2026-08-02T00:00:00.000Z'), inAt: iso('2026-08-02T14:37:00.000Z'), outAt: iso('2026-08-03T04:06:00.000Z'), punches: [{ time: '2026-08-02T14:37:00.000Z' }, { time: '2026-08-03T04:06:00.000Z' }], status: 'auto_approved', source: 'device', createdAt: iso('2026-08-03T05:00:00Z') });
+
+    // Shift assignments: employee 5 works a 10h shift on Wednesdays (18:00→04:00);
+    // employee 6 works a 10h shift (maxSpan = 13h) to exercise the merge guard.
     const shifts = [{
         id: 1, employeeId: 5, startDate: iso('2026-08-01T00:00:00.000Z'), endDate: iso('2026-08-31T00:00:00.000Z'),
         workShift: { id: 1, records: [{ day: 'wednesday', startTime: '18:00', endTime: '04:00', isOff: false }], minHours: 10, maxOtHours: 2 },
+    }, {
+        id: 2, employeeId: 6, startDate: iso('2026-08-01T00:00:00.000Z'), endDate: iso('2026-08-31T00:00:00.000Z'),
+        workShift: { id: 2, records: [{ day: 'wednesday', startTime: '18:00', endTime: '04:00', isOff: false }], minHours: 10, maxOtHours: 2 },
     }];
 
     return { entries: [...store.entries()], nextId, shifts: { rows: shifts } };
@@ -87,7 +100,7 @@ const mockPrisma = {
         },
         findFirst: async () => null, // repair script doesn't use findFirst
         update: async ({ where, data }) => { Object.assign(store.get(where.id), data); return store.get(where.id); },
-        create: async ({ data }) => { const id = state.nextId++; store.set(id, { id, ...data }); return store.get(id); },
+        create: async ({ data }) => { const id = (data && data.id) || state.nextId++; store.set(id, { id, ...data }); return store.get(id); },
         delete: async ({ where }) => { store.delete(where.id); },
     },
     $disconnect: async () => {},

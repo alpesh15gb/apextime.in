@@ -248,13 +248,22 @@ async function main() {
 
     // ── PASS 2: merge same employee+date duplicate groups ─────────────
     // Run AFTER pass 1; group by the PLANNED (post-recompute) date so
-    // records whose date moves onto the same day get merged too. Split-created
-    // rows are folded in here as well: if a split punch lands on a day that
-    // already has a sheet, its punches merge into that sheet in the SAME pass
-    // (no duplicate rows are ever created).
+    // records whose date moves onto the same day get merged too.
+    //
+    // CRITICAL FIX: the merge base is the POST-pass-1 state (the split /
+    // recompute result), NEVER the original pre-split punches — merging the
+    // originals silently re-glued the exact mispunch the split just separated
+    // (e.g. 01-08 became a 30h54m span instead of the split's honest open
+    // sheet). Split-created rows are only folded into an existing day's sheet
+    // when the merged result stays within the employee's plausible max span;
+    // otherwise they become their own sheets.
     const plannedDate = new Map();
+    const plannedPunches = new Map(); // id -> post-pass-1 punches
     for (const p of plan) {
-        if (p.kind === 'recompute' || p.kind === 'fix_date' || p.kind === 'split_keep') plannedDate.set(p.id, time.dayUTC(p.after.date).format('YYYY-MM-DD'));
+        if (p.kind === 'recompute' || p.kind === 'fix_date' || p.kind === 'split_keep') {
+            plannedDate.set(p.id, time.dayUTC(p.after.date).format('YYYY-MM-DD'));
+            plannedPunches.set(p.id, Array.isArray(p.after.punches) ? p.after.punches : []);
+        }
     }
 
     // Attach each created row to the group key it would land on.
@@ -266,14 +275,15 @@ async function main() {
     }
 
     const groups = {};
-    const mergedIds = new Set();
     const absorbCreated = new Set(); // indices of createdRows folded into a merge
+    const superseded = new Set();    // ids whose pass-1 entry is replaced by a merge_keep
     for (const t of all) {
         const d = plannedDate.get(t.id) || time.dayUTC(t.date).format('YYYY-MM-DD');
         const key = `${t.employeeId}|${d}`;
         (groups[key] = groups[key] || []).push(t);
     }
 
+    const mergePlan = [];
     for (const [key, rows] of Object.entries(groups)) {
         if (rows.length < 2 && (createdByKey[key] || []).length === 0) continue;
         if (rows.some(r => r.status === 'rejected')) {
@@ -289,18 +299,37 @@ async function main() {
         // (repair_split_from === primary.id) must NOT be re-absorbed — that
         // would undo the mispunch split when both segments land on the same
         // IST day (e.g. [08:00] and [22:00]). They stay separate sheets.
-        const extras = (createdByKey[key] || []).filter(x => x.row.meta?.repair_split_from !== primary.id);
+        let extras = (createdByKey[key] || []).filter(x => x.row.meta?.repair_split_from !== primary.id);
         if (dupes.length === 0 && extras.length === 0) continue;
 
-        // Merge RAW punch entries first, then normalize once (normalizePunches
-        // is not idempotent — it wraps entries in {entry, date}).
-        const rawAll = [
-            ...(Array.isArray(primary.punches) ? primary.punches : []),
-            ...dupes.flatMap(d => Array.isArray(d.punches) ? d.punches : []),
+        // Merge base = POST-pass-1 punches (never the pre-split originals).
+        const basePunches = plannedPunches.has(primary.id)
+            ? plannedPunches.get(primary.id)
+            : (Array.isArray(primary.punches) ? primary.punches : []);
+        const dupePunches = dupes.flatMap(d => plannedPunches.has(d.id)
+            ? plannedPunches.get(d.id)
+            : (Array.isArray(d.punches) ? d.punches : []));
+
+        let merged = normalizePunches([
+            ...basePunches,
+            ...dupePunches,
             ...extras.flatMap(x => Array.isArray(x.row.punches) ? x.row.punches : []),
-        ];
-        const merged = normalizePunches(rawAll);
-        const mergedDerived = derive(merged);
+        ]);
+        let mergedDerived = derive(merged);
+
+        // Reject split-created extras that would make the merged span
+        // implausible (the re-glue bug: a morning punch stretching a sheet to
+        // 24-30h). They then stay as their own new sheets.
+        if (extras.length && mergedDerived.inAt && mergedDerived.outAt) {
+            const spanMs = mergedDerived.outAt.getTime() - mergedDerived.inAt.getTime();
+            const maxMs = maxSpanFor(primary.employeeId, time.dayStrIST(mergedDerived.inAt));
+            if (spanMs > maxMs) {
+                extras = [];
+                merged = normalizePunches([...basePunches, ...dupePunches]);
+                mergedDerived = derive(merged);
+            }
+        }
+        if (dupes.length === 0 && extras.length === 0) continue;
 
         const before = {
             id: primary.id,
@@ -311,8 +340,11 @@ async function main() {
             id: primary.id,
             inAt: mergedDerived.inAt || primary.inAt,
             outAt: mergedDerived.outAt !== undefined ? mergedDerived.outAt : primary.outAt,
-            date: mergedDerived.date || primary.date,
-            punches: merged.length ? merged.map(x => x.entry) : primary.punches,
+            // Empty-punch groups (manual/mobile rows) have mergedDerived.date null
+            // — fall back to the PASS-1 planned date so a fix_date/recompute date
+            // correction isn't lost when its entry is superseded by this merge.
+            date: mergedDerived.date || plannedDate.get(primary.id) || primary.date,
+            punches: merged.length ? merged.map(x => x.entry) : (basePunches.length ? basePunches : primary.punches),
             status: primary.status,
         };
 
@@ -321,14 +353,21 @@ async function main() {
         // in the DB, so there is nothing to delete — and a string id would
         // crash the apply loop's prisma.timesheet.delete).
         if (rows.length > 1) {
-            plan.push({ id: primary.id, kind: 'merge_keep', employeeId: primary.employeeId, before, after, mergedFrom: dupes.map(d => d.id) });
+            mergePlan.push({ id: primary.id, kind: 'merge_keep', employeeId: primary.employeeId, before, after, mergedFrom: dupes.map(d => d.id) });
             toBackup.push(primary, ...dupes);
-            dupes.forEach(d => mergedIds.add(d.id));
+            dupes.forEach(d => superseded.add(d.id));
         } else {
-            plan.push({ id: primary.id, kind: 'merge_keep', employeeId: primary.employeeId, before, after, mergedFrom: [] });
+            mergePlan.push({ id: primary.id, kind: 'merge_keep', employeeId: primary.employeeId, before, after, mergedFrom: [] });
             toBackup.push(primary);
         }
+        superseded.add(primary.id);
         extras.forEach(x => absorbCreated.add(x.ci));
+    }
+    // A merge_keep supersedes any pass-1 entry for the same row (its state is
+    // folded in) — drop the pass-1 entries to avoid double-writing the row.
+    for (const mp of mergePlan) plan.push(mp);
+    for (let i = plan.length - 1; i >= 0; i--) {
+        if (superseded.has(plan[i].id) && plan[i].kind !== 'merge_keep') plan.splice(i, 1);
     }
     // Keep only split-created rows that weren't absorbed into an existing day.
     const finalCreated = createdRows.filter((_, ci) => !absorbCreated.has(ci));
