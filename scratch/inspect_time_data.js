@@ -1,17 +1,17 @@
 /* Inspect attendance data for time-related anomalies.
  * Usage: node scratch/inspect_time_data.js [--limit N]
- * Requires DATABASE_URL env (falls back to local compose defaults).
+ * Uses the app's Prisma client (src/lib/prisma.js) — requires DATABASE_URL.
  */
 require('dotenv').config();
-const { PrismaClient } = require('@prisma/client');
 const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
 const timezone = require('dayjs/plugin/timezone');
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
+const prisma = require('../src/lib/prisma');
+
 const TZ = 'Asia/Kolkata';
-const prisma = new PrismaClient();
 
 const parsePunchTime = (p) => {
     if (!p) return null;
