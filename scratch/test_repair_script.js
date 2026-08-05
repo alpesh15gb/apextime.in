@@ -23,6 +23,7 @@ const run = (args) => execFileSync(process.execPath, ['scripts/repair-attendance
 });
 
 // Seed fresh state (parent loads the mock once to create the seed file).
+reset();
 require(MOCK);
 const seeded = store();
 
@@ -36,6 +37,8 @@ ok('dry-run prints plan', dryOut.includes('Changes planned:'), 'no plan section'
 ok('dry-run prints report', dryOut.includes('Reported (not auto-fixed'), 'no report section');
 ok('dry-run plans a merge', dryOut.includes('[merge_keep]'), 'no merge planned');
 ok('dry-run plans a recompute', dryOut.includes('[recompute]'), 'no recompute planned');
+ok('dry-run plans a mispunch split', dryOut.includes('[split_keep]'), 'no split planned');
+ok('dry-run plans a new sheet from split', dryOut.includes('[split_create]'), 'no split_create planned');
 
 // ── 2. Apply ──
 const applyOut = run(['--tenant', '1', '--apply']);
@@ -51,6 +54,12 @@ ok('ts1 punches merged (2+1 deduped → 2)', get(1).punches.length === 2, JSON.s
 ok('ts3 date fixed to 10th', get(3).date === '2026-08-10T00:00:00.000Z', String(get(3).date));
 ok('ts4 untouched (outBeforeIn, no punches)', get(4).outAt < get(4).inAt);
 ok('ts5 untouched (open 48h)', get(5).outAt === null);
+// ts#6 was a 15h18m mispunch glue → after apply: original becomes open sheet
+// (18:16 IST only), and a NEW sheet holds the 09:34 IST punch.
+ok('ts6 split: original kept as open IN', get(6).outAt === null && get(6).inAt === '2026-08-05T12:46:00.000Z', JSON.stringify(get(6)));
+const newSheet = [...st.values()].find(t => t.meta && t.meta.repair_split_from === 6);
+ok('ts6 split: new sheet created for next-day punch', !!newSheet, 'no new sheet');
+ok('ts6 split: new sheet inAt 09:34 IST', newSheet && newSheet.inAt === '2026-08-06T04:04:00.000Z');
 
 // Cleanup dump so future runs reseed.
 reset();

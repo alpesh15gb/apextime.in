@@ -54,6 +54,15 @@ const mockPrisma = {
     },
 };
 
+// Configurable shift for mispunch-guard scenarios (null = no shift assigned).
+let mockShift = null;
+const mockPrisma2 = {
+    employeeWorkShift: {
+        findFirst: async () => mockShift,
+    },
+};
+Object.assign(mockPrisma, mockPrisma2);
+
 // Swap the real prisma module with the mock.
 const prismaModule = require.resolve('../src/lib/prisma');
 require.cache[prismaModule] = { id: prismaModule, filename: prismaModule, loaded: true, exports: mockPrisma };
@@ -163,6 +172,39 @@ const allForEmp = (empId) => [...store.values()].filter(t => t.employeeId === em
     ok('S9 evening punch starts a NEW sheet', t9.length === 2, `${t9.length} sheets (${r.action})`);
     ok('S9 new sheet inAt 18:00 d2', time.timeStrIST(t9[1].inAt) === '18:00' && time.dayStrIST(t9[1].inAt) === '2026-08-06');
     ok('S9 overnight sheet untouched', t9[0].punches.length === 2 && time.timeStrIST(t9[0].outAt) === '06:00');
+
+    // ── Scenario 10: THE USER'S BUG — 10h shift, missed OUT, next-day punch glued ──
+    // Emp works a 10-hour shift. Punches at 18:16 and next morning 09:34 would
+    // span 15h18m — implausible for a 10h shift → must NOT glue. Old sheet stays
+    // open (missed OUT) and the next-day punch starts its own sheet.
+    console.log('— Scenario 10: missed OUT + next-day punch (implausible 15h span)');
+    mockShift = {
+        workShift: {
+            records: [{ day: 'wednesday', startTime: '18:00', endTime: '04:00', isOff: false }],
+            minHours: 10, maxOtHours: 2,
+        },
+    };
+    const emp10 = { id: 110 };
+    // 2026-08-05 is a Wednesday
+    r = await processDevicePunch({ device, employee: emp10, punchTime: punch('2026-08-05 18:16:00'), inOutMode: '0' });
+    ok('S10 IN creates sheet', r.created, r.action);
+    r = await processDevicePunch({ device, employee: emp10, punchTime: punch('2026-08-06 09:34:00'), inOutMode: '0' });
+    ok('S10 next-day punch NOT glued', r.action.startsWith('new_day'), r.action);
+    const t10 = allForEmp(110);
+    ok('S10 two sheets created', t10.length === 2, `${t10.length} sheets`);
+    ok('S10 old sheet stays open (missed OUT)', t10[0].outAt === null);
+    ok('S10 old sheet flagged missedOut', t10[0].meta && t10[0].meta.missedOut === true, JSON.stringify(t10[0].meta));
+    ok('S10 new sheet starts at 09:34 d2', time.timeStrIST(t10[1].inAt) === '09:34' && time.dayStrIST(t10[1].inAt) === '2026-08-06');
+
+    // ── Scenario 11: plausible overnight span still glues (18:00→04:00 = 10h) ──
+    console.log('— Scenario 11: plausible overnight span still attaches');
+    const emp11 = { id: 111 };
+    r = await processDevicePunch({ device, employee: emp11, punchTime: punch('2026-08-05 18:00:00'), inOutMode: '0' });
+    r = await processDevicePunch({ device, employee: emp11, punchTime: punch('2026-08-06 04:00:00'), inOutMode: '0' });
+    const t11 = allForEmp(111);
+    ok('S11 single sheet', t11.length === 1, `${t11.length} sheets`);
+    ok('S11 outAt 04:00 d2', time.timeStrIST(t11[0].outAt) === '04:00' && time.dayStrIST(t11[0].outAt) === '2026-08-06');
+    mockShift = null;
 
     console.log(`\n${pass} passed, ${fail} failed`);
     process.exit(fail ? 1 : 0);

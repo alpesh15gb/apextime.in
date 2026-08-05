@@ -1,7 +1,8 @@
 /**
  * Attendance data repair — cleans up timesheets corrupted by the old iClock
  * punch-processing logic (outAt clobbering, spurious "clocked-in" sheets from
- * OUT punches, date-column/timezone shifts, same-day duplicates).
+ * OUT punches, date-column/timezone shifts, same-day duplicates, and
+ * MISPUNCHED sheets where a missed-OUT sheet got glued to the next day's punch).
  *
  * SAFETY:
  *  - DRY-RUN by default: prints everything it WOULD change, writes nothing.
@@ -12,6 +13,12 @@
  *  - Recomputes inAt / outAt / date from the `punches` array (first / last
  *    unique punch; outAt stays null when only one punch exists).
  *  - Fixes the `date` column to the IST calendar day of the first punch.
+ *  - SPLITS implausible spans (mispunch guard): when a device sheet's punches
+ *    span more than the shift's plausible maximum (shift duration + OT
+ *    allowance + grace), the punches are split at the largest gaps into
+ *    separate sheets — the first segment keeps the original row, later
+ *    segments become new open sheets. This un-glues e.g. a 15h18m "shift"
+ *    that was really a missed OUT + the next day's punch.
  *  - Merges duplicate timesheets for the same employee+date (only when no
  *    'rejected' record is involved).
  *  - Leaves genuinely ambiguous data untouched and merely REPORTS it:
@@ -29,12 +36,15 @@ const fs = require('fs');
 const path = require('path');
 const prisma = require('../src/lib/prisma');
 const time = require('../src/lib/time');
+const { maxSpanMsFromShift } = require('../src/lib/punchProcessor');
 
 const APPLY = process.argv.includes('--apply');
 const TENANT = process.argv.includes('--tenant')
     ? parseInt(process.argv[process.argv.indexOf('--tenant') + 1], 10) : null;
 const LIMIT = process.argv.includes('--limit')
     ? parseInt(process.argv[process.argv.indexOf('--limit') + 1], 10) : 0;
+const EMPLOYEE_CODE = process.argv.includes('--employee')
+    ? process.argv[process.argv.indexOf('--employee') + 1] : null;
 
 const DEDUPE_MS = 60000; // punches within 60s are the same punch
 
@@ -72,6 +82,29 @@ const derive = (normalized) => {
     };
 };
 
+/**
+ * Split a sorted normalized punch list into segments where every segment spans
+ * at most maxSpanMs. Splits at the LARGEST gaps first (most likely the day
+ * boundary between a missed-OUT sheet and the next day's punch).
+ */
+const splitBySpan = (normalized, maxSpanMs) => {
+    if (normalized.length < 2) return [normalized];
+    const total = normalized[normalized.length - 1].date.getTime() - normalized[0].date.getTime();
+    if (total <= maxSpanMs) return [normalized];
+
+    // Find the largest gap between consecutive punches, then recurse on BOTH
+    // halves so no segment can exceed the max span (3+ punch case).
+    let splitIdx = 0;
+    let largestGap = 0;
+    for (let i = 0; i < normalized.length - 1; i++) {
+        const gap = normalized[i + 1].date.getTime() - normalized[i].date.getTime();
+        if (gap > largestGap) { largestGap = gap; splitIdx = i; }
+    }
+    const first = normalized.slice(0, splitIdx + 1);
+    const rest = normalized.slice(splitIdx + 1);
+    return [...splitBySpan(first, maxSpanMs), ...splitBySpan(rest, maxSpanMs)];
+};
+
 const STATUS_PRIORITY = { approved: 0, auto_approved: 1, pending: 2, rejected: 3 };
 
 async function main() {
@@ -85,15 +118,42 @@ async function main() {
     }
 
     const where = { ...(TENANT ? { tenantId: TENANT } : {}) };
+    if (EMPLOYEE_CODE) {
+        const emp = await prisma.employee.findFirst({ where: { employeeCode: EMPLOYEE_CODE } });
+        if (!emp) {
+            console.error(`No employee with code ${EMPLOYEE_CODE}`);
+            process.exit(1);
+        }
+        where.employeeId = emp.id;
+        console.log(`Scoped to employee ${EMPLOYEE_CODE} (id=${emp.id}).`);
+    }
     const all = await prisma.timesheet.findMany({ where, orderBy: { id: 'asc' } });
     if (LIMIT > 0) all.length = Math.min(all.length, LIMIT);
     console.log(`Loaded ${all.length} timesheets${TENANT ? ` (tenant ${TENANT})` : ''}.`);
 
+    // Load shift assignments once so the mispunch guard can compute the
+    // plausible max span per employee/day. (Empty where = all tenants.)
+    const assignments = await prisma.employeeWorkShift.findMany({
+        where: { ...(TENANT ? { tenantId: TENANT } : {}) },
+        include: { workShift: true },
+    });
+    const shiftsByEmp = {};
+    for (const a of assignments) {
+        (shiftsByEmp[a.employeeId] = shiftsByEmp[a.employeeId] || []).push(a);
+    }
+    const maxSpanFor = (empId, istDay) => {
+        const list = shiftsByEmp[empId] || [];
+        const day = time.utcDate(istDay);
+        const cov = list.find(a => a.startDate <= day && a.endDate >= day);
+        return maxSpanMsFromShift(cov ? cov.workShift : null, istDay);
+    };
+
     const toBackup = [];      // rows to persist before modifying/deleting
     const plan = [];          // { id, kind, before, after }
     const reported = [];      // { id, kind, detail }
+    const createdRows = [];   // rows to CREATE (from splitting) — applied after
 
-    // ── PASS 1: normalize punches + recompute inAt/outAt/date ──────────
+    // ── PASS 1: split implausible spans + normalize punches + recompute ──
     for (const t of all) {
         const normalized = normalizePunches(t.punches);
         const derived = derive(normalized);
@@ -106,6 +166,44 @@ async function main() {
             // Punch landed > 2 days from stored date → looks wrong, only report.
             if (Math.abs(time.dayUTC(t.date).diff(time.dayUTC(inDay), 'day')) > 2) {
                 reported.push({ id: t.id, kind: 'punch_day_far_from_date', detail: `date=${dateStr} inDay=${inDay}` });
+            }
+
+            // ── MISPUNCH SPLIT: only device-sourced, non-reviewed sheets ──
+            // If the punches span more than the shift's plausible max, this is
+            // almost certainly a missed-OUT sheet glued to the next day's
+            // punch. Split into separate open sheets (admin reviews later).
+            const spanMs = normalized[normalized.length - 1].date.getTime() - normalized[0].date.getTime();
+            const maxSpanMs = maxSpanFor(t.employeeId, inDay);
+            const splittable = t.source === 'device' && (t.status === 'auto_approved' || t.status === 'pending');
+
+            if (splittable && spanMs > maxSpanMs) {
+                const segments = splitBySpan(normalized, maxSpanMs);
+                if (segments.length > 1) {
+                    const firstSeg = derive(segments[0]);
+                    const before = { inAt: t.inAt, outAt: t.outAt, date: t.date, punches: t.punches };
+                    const after = {
+                        inAt: firstSeg.inAt, outAt: firstSeg.outAt, date: firstSeg.date,
+                        punches: segments[0].map(x => x.entry),
+                    };
+                    plan.push({ id: t.id, kind: 'split_keep', employeeId: t.employeeId, before, after });
+                    toBackup.push(t);
+
+                    for (let s = 1; s < segments.length; s++) {
+                        const segDerived = derive(segments[s]);
+                        createdRows.push({
+                            tenantId: t.tenantId,
+                            employeeId: t.employeeId,
+                            date: segDerived.date,
+                            inAt: segDerived.inAt,
+                            outAt: segDerived.outAt,
+                            punches: segments[s].map(x => x.entry),
+                            source: t.source,
+                            status: t.status,
+                            meta: { repair_split_from: t.id, note: 'split from implausible span' },
+                        });
+                    }
+                    continue; // row fully handled by the split
+                }
             }
 
             const before = { inAt: t.inAt, outAt: t.outAt, date: t.date, punches: t.punches };
@@ -150,14 +248,26 @@ async function main() {
 
     // ── PASS 2: merge same employee+date duplicate groups ─────────────
     // Run AFTER pass 1; group by the PLANNED (post-recompute) date so
-    // records whose date moves onto the same day get merged too.
+    // records whose date moves onto the same day get merged too. Split-created
+    // rows are folded in here as well: if a split punch lands on a day that
+    // already has a sheet, its punches merge into that sheet in the SAME pass
+    // (no duplicate rows are ever created).
     const plannedDate = new Map();
     for (const p of plan) {
-        if (p.kind === 'recompute' || p.kind === 'fix_date') plannedDate.set(p.id, time.dayUTC(p.after.date).format('YYYY-MM-DD'));
+        if (p.kind === 'recompute' || p.kind === 'fix_date' || p.kind === 'split_keep') plannedDate.set(p.id, time.dayUTC(p.after.date).format('YYYY-MM-DD'));
+    }
+
+    // Attach each created row to the group key it would land on.
+    const createdByKey = {};
+    for (let ci = 0; ci < createdRows.length; ci++) {
+        const c = createdRows[ci];
+        const key = `${c.employeeId}|${time.dayUTC(c.date).format('YYYY-MM-DD')}`;
+        (createdByKey[key] = createdByKey[key] || []).push({ ci, row: c });
     }
 
     const groups = {};
     const mergedIds = new Set();
+    const absorbCreated = new Set(); // indices of createdRows folded into a merge
     for (const t of all) {
         const d = plannedDate.get(t.id) || time.dayUTC(t.date).format('YYYY-MM-DD');
         const key = `${t.employeeId}|${d}`;
@@ -165,7 +275,7 @@ async function main() {
     }
 
     for (const [key, rows] of Object.entries(groups)) {
-        if (rows.length < 2) continue;
+        if (rows.length < 2 && (createdByKey[key] || []).length === 0) continue;
         if (rows.some(r => r.status === 'rejected')) {
             reported.push({ id: rows[0].id, kind: 'dup_with_rejected', detail: `${key} (${rows.length} rows)` });
             continue;
@@ -175,14 +285,22 @@ async function main() {
         const primary = rows[0];
         const dupes = rows.slice(1);
 
+        // Split-created rows that were carved OUT of this very sheet
+        // (repair_split_from === primary.id) must NOT be re-absorbed — that
+        // would undo the mispunch split when both segments land on the same
+        // IST day (e.g. [08:00] and [22:00]). They stay separate sheets.
+        const extras = (createdByKey[key] || []).filter(x => x.row.meta?.repair_split_from !== primary.id);
+        if (dupes.length === 0 && extras.length === 0) continue;
+
         // Merge RAW punch entries first, then normalize once (normalizePunches
         // is not idempotent — it wraps entries in {entry, date}).
         const rawAll = [
             ...(Array.isArray(primary.punches) ? primary.punches : []),
             ...dupes.flatMap(d => Array.isArray(d.punches) ? d.punches : []),
+            ...extras.flatMap(x => Array.isArray(x.row.punches) ? x.row.punches : []),
         ];
         const merged = normalizePunches(rawAll);
-        const derived = derive(merged);
+        const mergedDerived = derive(merged);
 
         const before = {
             id: primary.id,
@@ -191,28 +309,49 @@ async function main() {
         };
         const after = {
             id: primary.id,
-            inAt: derived.inAt || primary.inAt,
-            outAt: derived.outAt !== undefined ? derived.outAt : primary.outAt,
-            date: derived.date || primary.date,
+            inAt: mergedDerived.inAt || primary.inAt,
+            outAt: mergedDerived.outAt !== undefined ? mergedDerived.outAt : primary.outAt,
+            date: mergedDerived.date || primary.date,
             punches: merged.length ? merged.map(x => x.entry) : primary.punches,
             status: primary.status,
         };
 
-        plan.push({ id: primary.id, kind: 'merge_keep', employeeId: primary.employeeId, before, after, mergedFrom: dupes.map(d => d.id) });
-        toBackup.push(primary, ...dupes);
-        dupes.forEach(d => mergedIds.add(d.id));
+        // NOTE: absorbed split-created rows are folded into the primary's
+        // punches but MUST NOT be listed in mergedFrom (they were never created
+        // in the DB, so there is nothing to delete — and a string id would
+        // crash the apply loop's prisma.timesheet.delete).
+        if (rows.length > 1) {
+            plan.push({ id: primary.id, kind: 'merge_keep', employeeId: primary.employeeId, before, after, mergedFrom: dupes.map(d => d.id) });
+            toBackup.push(primary, ...dupes);
+            dupes.forEach(d => mergedIds.add(d.id));
+        } else {
+            plan.push({ id: primary.id, kind: 'merge_keep', employeeId: primary.employeeId, before, after, mergedFrom: [] });
+            toBackup.push(primary);
+        }
+        extras.forEach(x => absorbCreated.add(x.ci));
     }
+    // Keep only split-created rows that weren't absorbed into an existing day.
+    const finalCreated = createdRows.filter((_, ci) => !absorbCreated.has(ci));
+    createdRows.length = 0;
+    createdRows.push(...finalCreated);
 
     // ── REPORT ──────────────────────────────────────────────────────────
-    console.log(`\nChanges planned: ${plan.length}`);
+    console.log(`\nChanges planned: ${plan.length} (+ ${createdRows.length} new sheets from splits)`);
     for (const p of plan) {
         const short = (d) => d ? time.tz(d).format('DD-MM HH:mm') : '-';
         const ds = (d) => d ? time.dayUTC(d).format('YYYY-MM-DD') : '-';
         if (p.kind === 'merge_keep') {
             console.log(`  [${p.kind}] ts#${p.id} (emp ${p.employeeId}) ← merge ${(p.mergedFrom || []).join(',')} | date ${ds(p.before.date)}→${ds(p.after.date)} in ${short(p.before.inAt)}→${short(p.after.inAt)} out ${short(p.before.outAt)}→${short(p.after.outAt)}`);
+        } else if (p.kind === 'split_keep') {
+            console.log(`  [${p.kind}] ts#${p.id} (emp ${p.employeeId}) MISPUNCH-SPLIT | date ${ds(p.before.date)}→${ds(p.after.date)} in ${short(p.before.inAt)}→${short(p.after.inAt)} out ${short(p.before.outAt)}→${short(p.after.outAt)}`);
         } else {
             console.log(`  [${p.kind}] ts#${p.id} (emp ${p.employeeId}) | date ${ds(p.before.date)}→${ds(p.after.date)} in ${short(p.before.inAt)}→${short(p.after.inAt)} out ${short(p.before.outAt)}→${short(p.after.outAt)}`);
         }
+    }
+    for (const c of createdRows) {
+        const short = (d) => d ? time.tz(d).format('DD-MM HH:mm') : '-';
+        const ds = (d) => d ? time.dayUTC(d).format('YYYY-MM-DD') : '-';
+        console.log(`  [split_create] NEW ts (emp ${c.employeeId}) | date ${ds(c.date)} in ${short(c.inAt)} out ${short(c.outAt)}`);
     }
 
     console.log(`\nReported (not auto-fixed, review manually): ${reported.length}`);
@@ -260,7 +399,23 @@ async function main() {
                 },
             });
             updated++;
+        } else if (p.kind === 'split_keep') {
+            await prisma.timesheet.update({
+                where: { id: p.id },
+                data: {
+                    inAt: p.after.inAt,
+                    outAt: p.after.outAt,
+                    date: p.after.date,
+                    punches: p.after.punches,
+                },
+            });
+            updated++;
         }
+    }
+
+    for (const c of createdRows) {
+        await prisma.timesheet.create({ data: c });
+        updated++;
     }
 
     console.log(`\n✅ Applied ${updated} changes (${uniqueBackup.length} rows backed up).`);

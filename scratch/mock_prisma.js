@@ -24,8 +24,17 @@ function seedStore() {
     add({ tenantId: 1, employeeId: 3, date: iso('2026-08-05T00:00:00.000Z'), inAt: iso('2026-08-05T12:30:00.000Z'), outAt: iso('2026-08-05T03:30:00.000Z'), punches: [], status: 'approved', source: 'manual', createdAt: iso('2026-08-06T04:00:00Z') });
     // ts#5: open > 48h → report only
     add({ tenantId: 1, employeeId: 4, date: iso('2026-07-20T00:00:00.000Z'), inAt: iso('2026-07-20T03:30:00.000Z'), outAt: null, punches: [], status: 'auto_approved', source: 'device', createdAt: iso('2026-07-20T04:00:00Z') });
+    // ts#6: MISPUNCH — missed-OUT sheet glued to next-day punch: 18:16 IST day1
+    // + 09:34 IST day2 = 15h18m span for a 10h shift → must split into 2 sheets.
+    add({ tenantId: 1, employeeId: 5, date: iso('2026-08-05T00:00:00.000Z'), inAt: iso('2026-08-05T12:46:00.000Z'), outAt: iso('2026-08-06T04:04:00.000Z'), punches: [{ time: '2026-08-05T12:46:00.000Z' }, { time: '2026-08-06T04:04:00.000Z' }], status: 'auto_approved', source: 'device', createdAt: iso('2026-08-06T05:00:00Z') });
 
-    return { entries: [...store.entries()], nextId };
+    // Shift assignment: employee 5 works a 10h shift on Wednesdays (18:00→04:00).
+    const shifts = [{
+        id: 1, employeeId: 5, startDate: iso('2026-08-01T00:00:00.000Z'), endDate: iso('2026-08-31T00:00:00.000Z'),
+        workShift: { id: 1, records: [{ day: 'wednesday', startTime: '18:00', endTime: '04:00', isOff: false }], minHours: 10, maxOtHours: 2 },
+    }];
+
+    return { entries: [...store.entries()], nextId, shifts: { rows: shifts } };
 }
 
 // Load persisted state or seed fresh.
@@ -43,15 +52,34 @@ const hydrate = (t) => {
     for (const f of DATE_FIELDS) if (typeof out[f] === 'string') out[f] = new Date(out[f]);
     return out;
 };
+// Shifts need startDate/endDate hydrated too (they live outside `store`).
+const hydrateShifts = (rows) => (rows || []).map(s => ({
+    ...s,
+    startDate: typeof s.startDate === 'string' ? new Date(s.startDate) : s.startDate,
+    endDate: typeof s.endDate === 'string' ? new Date(s.endDate) : s.endDate,
+}));
 
 // Store keeps Dates; the dump file stores ISO strings (hydrate on load).
 const store = new Map(state.entries.map(([id, t]) => [id, hydrate(t)]));
 
 // Persist immediately (so parents can read the seeded state) and on exit.
-const persist = () => fs.writeFileSync(DUMP, JSON.stringify({ entries: [...store.entries()].map(([id, t]) => [id, { ...t }]), nextId: state.nextId }));
+const persist = () => fs.writeFileSync(DUMP, JSON.stringify({
+    entries: [...store.entries()].map(([id, t]) => [id, { ...t }]),
+    nextId: state.nextId,
+    shifts: state.shifts || { rows: [] },
+}));
 persist();
 
 const mockPrisma = {
+    employeeWorkShift: {
+        findMany: async () => hydrateShifts(state.shifts ? state.shifts.rows : []),
+    },
+    employee: {
+        findFirst: async ({ where }) => {
+            if (where && where.employeeCode === '1303') return { id: 999, employeeCode: '1303' };
+            return null;
+        },
+    },
     timesheet: {
         findMany: async ({ where }) => {
             const rows = [...store.values()].filter(t => !where || !where.tenantId || t.tenantId === where.tenantId);
