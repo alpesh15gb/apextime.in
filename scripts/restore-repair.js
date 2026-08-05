@@ -40,19 +40,28 @@ async function main() {
     const rows = Array.isArray(data.rows) ? data.rows : [];
     console.log(`Loaded ${rows.length} backed-up rows from ${file}`);
 
+    // Which kind of backup is this? A rebuild backup (meta.kind === 'rebuild')
+    // only ever CREATES rows tagged meta.rebuild_created — it never creates
+    // repair-split rows, and rows tagged repair_split_from from an EARLIER
+    // repair run may legitimately exist OUTSIDE the rebuild window and must
+    // NOT be deleted here. Branch on the kind so an undo can never destroy
+    // rows the rebuild did not touch.
+    const isRebuildBackup = data.meta && data.meta.kind === 'rebuild';
+
     // Backed-up rows hold the FULL pre-repair row objects (they were captured
     // with findMany), so restoring is a simple field write-back.
     const restorePlan = rows.filter(r => r && r.id);
     console.log(`Will restore ${restorePlan.length} rows.`);
 
-    // The repair may also have CREATED rows (mispunch splits). They carry
-    // meta.repair_split_from — find and remove them so the pre-repair state is
+    // The repair may also have CREATED rows (mispunch splits) or a rebuild
+    // (rebuild-employee-days.js) may have re-created the window (tagged
+    // meta.rebuild_created). Remove all of them so the pre-repair state is
     // fully recovered. Only touch employees present in the backup.
     const empIds = [...new Set(restorePlan.map(r => r.employeeId).filter(Boolean))];
     const created = empIds.length
         ? await prisma.timesheet.findMany({ where: { employeeId: { in: empIds } } })
         : [];
-    const createdIds = created.filter(t => t.meta && t.meta.repair_split_from).map(t => t.id);
+    const createdIds = created.filter(t => t.meta && (isRebuildBackup ? t.meta.rebuild_created : t.meta.repair_split_from)).map(t => t.id);
     console.log(`Will delete ${createdIds.length} split-created rows.`);
     if (createdIds.length > restorePlan.length) {
         console.log('  NOTE: more split-created rows than backed-up rows were found for these employees —');

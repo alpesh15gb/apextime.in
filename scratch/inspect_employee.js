@@ -82,7 +82,7 @@ async function main() {
             employeeId: employee.id,
             date: { gte: time.utcDate(start), lte: time.utcDate(end) },
         },
-        orderBy: { date: 'asc', id: 'asc' },
+        orderBy: [{ date: 'asc' }, { id: 'asc' }],
     });
     console.log(`\n=== TIMESHEETS (${sheets.length}) ===`);
     for (const s of sheets) {
