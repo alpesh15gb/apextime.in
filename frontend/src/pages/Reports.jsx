@@ -377,7 +377,7 @@ const ApexReportMonthly = ({ data, meta }) => {
 
                                     return (
                                         <tr key={k} style={{ color: isHoliday ? '#666' : 'black', borderBottom: '1px solid #eee' }}>
-                                            <td style={{ padding: '2px' }}>{dayjs(k).format('DD/MM/YYYY')}</td>
+                                            <td style={{ padding: '2px' }}>{dayjs(k).format('DD/MM/YYYY')}{day?.glued ? <span title="Mispunched/glued sheet — run rebuild to fix" style={{ color: '#e11d48', fontWeight: 'bold', marginLeft: 3 }}>⚠</span> : null}</td>
                                             <td style={{ textAlign: 'center', fontSize: '8.5px', padding: '2px' }}>{day?.shift || '-'}</td>
                                             <td style={{ textAlign: 'center', padding: '2px' }}>{day?.in || ''}</td>
                                             <td style={{ textAlign: 'center', padding: '2px' }}>{day?.out || ''}</td>

@@ -299,4 +299,11 @@ const processDevicePunch = async ({ device, employee, punchTime, inOutMode, veri
     return { created: true, timesheetId: created.id, action: isNewDayDecision ? reason : 'created' };
 };
 
-module.exports = { processDevicePunch, normalizePunchList, deriveTimes, maxSpanMsFromShift, loadShiftForDay };
+module.exports = {
+    processDevicePunch,
+    normalizePunchList,
+    deriveTimes,
+    maxSpanMsFromShift,
+    loadShiftForDay,
+    DEFAULT_MAX_SPAN_MS,
+};

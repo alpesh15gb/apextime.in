@@ -7,6 +7,7 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 
 const time = require('../lib/time');
+const { maxSpanMsFromShift, DEFAULT_MAX_SPAN_MS } = require('../lib/punchProcessor');
 
 const TZ = time.TZ;
 
@@ -54,6 +55,7 @@ const getEmployeeShiftForDate = (empId, dateObj, shiftAssignments) => {
             const dayRecord = (assign.shift.records || []).find(r => r.day === dayName);
             return {
                 shiftName: assign.shift.name,
+                rawShift: assign.shift,
                 dayRecord: dayRecord || null,
                 isFlexible: assign.shift.isFlexible,
                 minHours: assign.shift.minHours,
@@ -204,7 +206,7 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
             let status = 'A';
             let shiftName = 'GEN';
             let inTime = '', outTime = '', inTimeLunch = '', outTimeLunch = '', late = '00:00', early = '00:00', ot = '00:00';
-            let workMs = 0, lateMs = 0, earlyMs = 0, otMs = 0, lunchMs = 0, lossOfHoursMs = 0, missedOut = false;
+            let workMs = 0, lateMs = 0, earlyMs = 0, otMs = 0, lunchMs = 0, lossOfHoursMs = 0, missedOut = false, glued = false;
             // ── ESSL-parity fields ──
             let inDurationMs = 0, outDurationMs = 0, shiftDurationMs = 0;
             let holiday = false, weeklyOff = false, isOnLeave = false, leaveTypeStr = '', leaveDuration = 0;
@@ -280,10 +282,11 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                 // ── Normal record or overnight IN day ──
                 else if (record) {
                     if (record.inAt) { inTime = dayjs.tz(record.inAt, TZ).format('HH:mm'); status = 'P'; }
+                    let outDay = '';
                     if (record.outAt) { 
                         const outDt = dayjs.tz(record.outAt, TZ);
                         const inDt = dayjs.tz(record.inAt, TZ);
-                        const outDay = outDt.format('YYYY-MM-DD');
+                        outDay = outDt.format('YYYY-MM-DD');
                         
                         if (dayIsOvernight && outDay > dayKey) {
                             // Overnight shift: OUT is on the next day
@@ -304,10 +307,27 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                         missedOut = true;
                     }
 
+                    // ── MISPUNCH GUARD (report hardening) ──
+                    // A single timesheet must never produce more work than the shift's
+                    // plausible maximum (shift duration + OT allowance + grace). Glued
+                    // sheets — a missed-OUT day chained to the NEXT day's punch — would
+                    // otherwise show 24h+ work hours in the summary. When detected, the
+                    // impossible OUT is dropped and the day is shown as a missed-OUT day
+                    // (mirrors src/lib/punchProcessor.js behavior).
+                    if (record.inAt && record.outAt && workMs > 0) {
+                        const maxSpanMs = maxSpanMsFromShift(empShift.rawShift, dayKey);
+                        if (workMs > maxSpanMs) {
+                            outTime = '';
+                            workMs = 0;
+                            missedOut = true;
+                            glued = true;
+                        }
+                    }
+
                     if (empShift.isFlexible) {
                         const minWorkMs = (empShift.minHours || 0) * 3600000;
                         lateMs = 0;
-                        if (record.inAt && record.outAt && minWorkMs > 0) {
+                        if (!glued && record.inAt && record.outAt && minWorkMs > 0) {
                             const totalWorkMs = dayjs(record.outAt).diff(dayjs(record.inAt));
                             if (totalWorkMs < minWorkMs) {
                                 early = formatDuration(minWorkMs - totalWorkMs);
@@ -334,7 +354,7 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                         }
 
                         // Early — time from last punch to shift end (ESSL logic: shiftEnd - lastPunch)
-                        if (record.outAt && shiftEndMins !== null) {
+                        if (!glued && record.outAt && shiftEndMins !== null) {
                             const punchOut = dayjs.tz(record.outAt, TZ);
                             const punchOutMins = punchOut.hour() * 60 + punchOut.minute();
                             // For overnight: if OUT is on next day, shift end is shifted
@@ -358,16 +378,16 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                                 if (shiftDurationMins < 0) shiftDurationMins += 24 * 60; // overnight
                                 const shiftDurationMs2 = shiftDurationMins * 60000;
 
-                                // Break deduction
+                                // Break deduction (skipped on glued days — treated as missed OUT)
                                 let breakDeductionMs = 0;
-                                if (empShift.break1Enabled && record && record.outAt) {
+                                if (!glued && empShift.break1Enabled && record && record.outAt) {
                                     const b1End = timeToMinutes(empShift.break1End || '13:30');
                                     if (b1End !== null && workMs > 0) {
                                         const b1Start2 = timeToMinutes(empShift.break1Start || '13:00');
                                         if (b1Start2 !== null) breakDeductionMs += (b1End - b1Start2) * 60000;
                                     }
                                 }
-                                if (empShift.break2Enabled && record && record.outAt) {
+                                if (!glued && empShift.break2Enabled && record && record.outAt) {
                                     const b2End = timeToMinutes(empShift.break2End || '17:30');
                                     if (b2End !== null && workMs > 0) {
                                         const b2Start2 = timeToMinutes(empShift.break2Start || '17:00');
@@ -381,7 +401,7 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                                     lossOfHoursMs = shiftDurationMs2 - effectiveWorkMs;
                                 }
 
-                                // OT calculation with FULL ESSL formulas
+                                // OT calculation with FULL ESSL formulas (skipped on glued days)
                                 const otFormula = empShift.otFormula || 'total_duration_minus_shift';
                                 const considerEarly = empShift.considerEarlyPunch !== false;
                                 const considerLate = empShift.considerLatePunch !== false;
@@ -389,14 +409,17 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                                 // Calculate punches outside shift window
                                 let durationBeforeShiftMs = 0;
                                 let durationAfterShiftMs = 0;
-                                let actualShiftEndMins = shiftEndMins2 / 60000;
+                                // shiftEndMins2 / shiftStartMins2 are MINUTES since midnight —
+                                // never divide by 60000 (that turned them into tiny fractions
+                                // and inflated OT by ~hours).
+                                let actualShiftEndMins = shiftEndMins2;
                                 if (dayIsOvernight) actualShiftEndMins += 24 * 60;
                                 
                                 if (record.inAt) {
                                     const punchIn = dayjs.tz(record.inAt, TZ);
                                     const punchInMins = punchIn.hour() * 60 + punchIn.minute();
-                                    if (punchInMins < shiftStartMins2 / 60000) {
-                                        durationBeforeShiftMs = (shiftStartMins2 / 60000 - punchInMins) * 60000;
+                                    if (punchInMins < shiftStartMins2) {
+                                        durationBeforeShiftMs = (shiftStartMins2 - punchInMins) * 60000;
                                     }
                                 }
                                 if (record.outAt) {
@@ -408,24 +431,24 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                                 }
                                 
                                 // Apply OT formulas
-                                if (otFormula === 'not_applicable') {
+                                if (!glued && otFormula === 'not_applicable') {
                                     otMs = 0;
-                                } else if (otFormula === 'out_punch_minus_shift_end') {
+                                } else if (!glued && otFormula === 'out_punch_minus_shift_end') {
                                     // Out Punch - Shift End Time
                                     otMs = durationAfterShiftMs;
-                                } else if (otFormula === 'duration_minus_shift') {
+                                } else if (!glued && otFormula === 'duration_minus_shift') {
                                     // Total Duration - Shift Hours (ESSL default)
                                     const totalWorkMs = dayjs(record.outAt).diff(dayjs(record.inAt));
                                     otMs = totalWorkMs - shiftDurationMs2;
                                     if (!considerEarly) otMs -= durationBeforeShiftMs;
                                     if (!considerLate) otMs -= durationAfterShiftMs;
-                                } else if (otFormula === 'early_plus_late') {
+                                } else if (!glued && otFormula === 'early_plus_late') {
                                     // Early Coming + Late Going
                                     if (considerEarly) otMs = durationBeforeShiftMs;
                                     if (considerLate) otMs += durationAfterShiftMs;
                                 } else {
                                     // Default fallback
-                                    otMs = Math.max(0, effectiveWorkMs - shiftDurationMs2);
+                                    otMs = glued ? 0 : Math.max(0, effectiveWorkMs - shiftDurationMs2);
                                 }
                                 otMs = Math.max(0, otMs);
                                 ot = formatDuration(otMs);
@@ -487,6 +510,16 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                     if (record.outAt) { 
                         outTime = time.timeStrIST(record.outAt);
                         workMs = dayjs(record.outAt).diff(dayjs(record.inAt)); 
+                    }
+                    
+                    // ── MISPUNCH GUARD (no shift assigned) ──
+                    // Same hardening as the shift-assigned branch: a glued sheet
+                    // must never show > DEFAULT_MAX_SPAN_MS hours of work.
+                    if (record.inAt && record.outAt && workMs > DEFAULT_MAX_SPAN_MS) {
+                        outTime = '';
+                        workMs = 0;
+                        missedOut = true;
+                        glued = true;
                     }
                     
                     const minWorkMs = DEFAULT_MIN_HOURS * 3600000;
@@ -660,7 +693,7 @@ const getAttendanceGridData = async (tenantId, startDate, endDate, departmentId)
                 shiftStart: dayRec?.startTime || '',
                 shiftEnd: dayRec?.endTime || '',
                 isOvernight: isOvernightShift(dayRec),
-                status, late, early, ot, lossOfHours: formatDuration(lossOfHoursMs), missedOut,
+                status, late, early, ot, lossOfHours: formatDuration(lossOfHoursMs), missedOut, glued,
                 lunch: formatDuration(lunchMs),
                 shiftLunchDuration: empShift?.lunchDuration || 1.0,
                 lunchOut: outTimeLunch,
