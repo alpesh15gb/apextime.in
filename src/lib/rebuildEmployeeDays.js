@@ -157,7 +157,10 @@ async function rebuildEmployeeDays({ employee, sinceArg = null, apply = false, l
  * Returns the backup file path.
  */
 function writeBackup(kind, rows, employeeRefs) {
-    const dir = path.join(__dirname, '..', 'backups');
+    // Project-root backups/ dir (this module lives in src/lib/, so we need
+    // TWO levels up — not one, which would land in src/backups/ and leave
+    // restore-repair.js and the offline test unable to find the file).
+    const dir = path.join(__dirname, '..', '..', 'backups');
     fs.mkdirSync(dir, { recursive: true });
     const file = path.join(dir, `timesheets-rebuild-${kind}-${Date.now()}.json`);
     fs.writeFileSync(file, JSON.stringify({
